@@ -14,6 +14,7 @@
 #include "clang/AST/CXXInheritance.h"
 #include "clang/AST/Decl.h"
 #include "clang/AST/DeclCXX.h"
+#include "clang/AST/DeclFriend.h"
 #include "clang/AST/GlobalDecl.h"
 #include "clang/AST/Mangle.h"
 #include "clang/AST/QualTypeNames.h"
@@ -3433,6 +3434,18 @@ namespace Cpp {
       for (auto* i : Result) {
         if (kind & GetOperatorArity(i))
           operators.push_back(i);
+      }
+    }
+
+    // resolve friends if scope is a class
+    if (const auto *CXXRD = llvm::dyn_cast_or_null<CXXRecordDecl>(D)) {
+      for (auto *i: CXXRD->friends()) {
+        if (auto *FD = llvm::dyn_cast_or_null<FunctionDecl>(i->getFriendDecl())) {
+          if (FD->getOverloadedOperator() != (clang::OverloadedOperatorKind)op)
+            continue;
+          if (kind & GetOperatorArity(FD))
+            operators.push_back(FD);
+        }
       }
     }
   }
