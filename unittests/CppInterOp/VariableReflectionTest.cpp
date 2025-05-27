@@ -676,4 +676,6 @@ TEST(VariableReflectionTest, Is_Get_Reference) {
             Cpp::GetVariableType(Decls[5]));
 
   EXPECT_FALSE(Cpp::GetNonReferenceType(Cpp::GetVariableType(Decls[5])));
+  EXPECT_TRUE(Cpp::IsLValueReferenceType(Decls[2]));
+  EXPECT_EQ(Cpp::GetReferencedType(Decls[1]), Decls[2]);
 }

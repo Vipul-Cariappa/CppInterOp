@@ -1614,6 +1614,16 @@ namespace Cpp {
     return QT->isReferenceType();
   }
 
+  bool IsLValueReferenceType(TCppType_t type) {
+    QualType QT = QualType::getFromOpaquePtr(type);
+    return QT->isLValueReferenceType();
+  }
+
+  TCppType_t GetReferencedType(TCppType_t type) {
+    QualType QT = QualType::getFromOpaquePtr(type);
+    return getASTContext().getLValueReferenceType(QT).getAsOpaquePtr();
+  }
+
   TCppType_t GetNonReferenceType(TCppType_t type) {
     if (!IsReferenceType(type))
       return nullptr;
