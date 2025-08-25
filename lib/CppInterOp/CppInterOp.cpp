@@ -73,6 +73,7 @@
 #include <unordered_map>
 #include <utility>
 #include <vector>
+#include <iostream>
 
 // Stream redirect.
 #ifdef _WIN32
@@ -3338,6 +3339,7 @@ static std::string MakeResourcesPath() {
 TInterp_t CreateInterpreter(const std::vector<const char*>& Args /*={}*/,
                             const std::vector<const char*>& GpuArgs /*={}*/) {
   std::lock_guard<std::recursive_mutex> Lock(InterpreterStackLock);
+  assert(sInterpreters->size() == sInterpreterASTMap->size());
   std::string MainExecutableName = sys::fs::getMainExecutable(nullptr, nullptr);
   std::string ResourceDir = MakeResourcesPath();
   std::vector<const char*> ClingArgv = {"-resource-dir", ResourceDir.c_str(),
@@ -3415,15 +3417,23 @@ TInterp_t CreateInterpreter(const std::vector<const char*>& Args /*={}*/,
 
   sInterpreters->emplace_back(
       std::make_shared<InterpreterInfo>(I, /*Owned=*/true));
-  sInterpreterASTMap->insert(
+  auto res = sInterpreterASTMap->insert(
       {&sInterpreters->back()->Interpreter->getSema().getASTContext(),
        sInterpreters->back()});
+  std::cout << "!!! " << &sInterpreters->back()->Interpreter->getSema().getASTContext() << " " << &I->getSema().getASTContext() << std::endl;
+  if (!std::get<1>(res)) {
+    auto r = std::get<0>(res);
+    std::cout << "Destination: " << r->second.lock().get() << std::endl;
+  }
+  assert(std::get<1>(res));
+  assert(sInterpreters->size() == sInterpreterASTMap->size());
 
   return I;
 }
 
 bool DeleteInterpreter(TInterp_t I /*=nullptr*/) {
   std::lock_guard<std::recursive_mutex> Lock(InterpreterStackLock);
+  assert(sInterpreters->size() == sInterpreterASTMap->size());
 
   if (!I) {
     auto foundAST =
@@ -3433,6 +3443,7 @@ bool DeleteInterpreter(TInterp_t I /*=nullptr*/) {
                      });
     sInterpreterASTMap->erase(foundAST);
     sInterpreters->pop_back();
+    assert(sInterpreters->size() == sInterpreterASTMap->size());
     return true;
   }
 
@@ -3447,6 +3458,7 @@ bool DeleteInterpreter(TInterp_t I /*=nullptr*/) {
       [&found](const auto& Item) { return Item.second.lock() == *found; });
   sInterpreterASTMap->erase(foundAST);
   sInterpreters->erase(found);
+  assert(sInterpreters->size() == sInterpreterASTMap->size());
   return true;
 }
 
@@ -3481,6 +3493,10 @@ void UseExternalInterpreter(TInterp_t I) {
   sInterpreters->emplace_back(
       std::make_shared<InterpreterInfo>(static_cast<compat::Interpreter*>(I),
                                         /*isOwned=*/false));
+  sInterpreterASTMap->insert(
+      {&sInterpreters->back()->Interpreter->getSema().getASTContext(),
+       sInterpreters->back()});
+  assert(sInterpreters->size() == sInterpreterASTMap->size());
 }
 
 void AddSearchPath(const char* dir, bool isUser, bool prepend) {

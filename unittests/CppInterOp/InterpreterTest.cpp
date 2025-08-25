@@ -149,7 +149,8 @@ TEST(InterpreterTest, Process) {
   auto Res = clang_Interpreter_evaluate(CXI, "c", CXV);
   EXPECT_EQ(Res, CXError_Success);
   clang_Value_dispose(CXV);
-  clang_Interpreter_dispose(CXI);
+  clang_Interpreter_dispose(CXI); // ???: is it safe to dispose?
+                                    // I->Interp is still part of the sInterpreters & sInterpreterASTMap
 }
 
 TEST(InterpreterTest, EmscriptenExceptionHandling) {
