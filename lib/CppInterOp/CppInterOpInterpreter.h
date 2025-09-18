@@ -340,6 +340,7 @@ public:
   const clang::CompilerInstance* getCI() const { return getCompilerInstance(); }
 
   clang::Sema& getSema() const { return getCI()->getSema(); }
+  clang::ASTContext& getASTContext() const { return getSema().getASTContext(); }
 
   const DynamicLibraryManager* getDynamicLibraryManager() const {
     assert(compat::getExecutionEngine(*inner) && "We must have an executor");
