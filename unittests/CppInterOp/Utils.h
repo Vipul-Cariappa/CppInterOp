@@ -34,4 +34,9 @@ void dispose_string(CXString string);
 
 CXScope make_scope(const clang::Decl* D, const CXInterpreter I);
 
+struct ThreadPoolExecutor {
+  static void run(std::vector<std::pair<const char*, void (*)()>>& fns,
+                  unsigned runners = std::thread::hardware_concurrency());
+};
+
 #endif // CPPINTEROP_UNITTESTS_LIBCPPINTEROP_UTILS_H
