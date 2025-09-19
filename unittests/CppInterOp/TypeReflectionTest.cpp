@@ -121,7 +121,7 @@ TEST(TypeReflectionTest, GetType) {
     class A {};
     )";
 
-  Cpp::Declare(code.c_str());
+  EXPECT_FALSE(Cpp::Declare(code.c_str()));
 
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetType("int")), "int");
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetType("double")), "double");
@@ -577,7 +577,7 @@ void TypeReflectionTest_IsSmartPtrType() {
   if (llvm::sys::RunningOnValgrind())
     GTEST_SKIP() << "XFAIL due to Valgrind report";
 
-  Cpp::Declare(R"(
+  EXPECT_FALSE(Cpp::Declare(R"(
     #include <memory>
 
     template<typename T>
@@ -597,10 +597,10 @@ void TypeReflectionTest_IsSmartPtrType() {
     C *raw_ptr;
     C object();
   )",
-               false, I);
+                            false, I));
 
-  auto get_type_from_varname = [&](const std::string &varname) {
-    return Cpp::GetVariableType(Cpp::GetNamed(varname));
+  auto get_type_from_varname = [&](const std::string& varname) {
+    return Cpp::GetVariableType(Cpp::GetNamed(varname, Cpp::GetGlobalScope(I)));
   };
 
   //EXPECT_TRUE(Cpp::IsSmartPtrType(get_type_from_varname("smart_ptr1")));
@@ -614,18 +614,18 @@ void TypeReflectionTest_IsSmartPtrType() {
 }
 
 void TypeReflectionTest_IsFunctionPointerType() {
-  Cpp::Declare(R"(
+  EXPECT_FALSE(Cpp::Declare(R"(
     typedef int (*int_func)(int, int);
     int sum(int x, int y) { return x + y; }
     int_func f = sum;
     int i = 2;
   )",
-               false, I);
+                            false, I));
 
-  EXPECT_TRUE(
-      Cpp::IsFunctionPointerType(Cpp::GetVariableType(Cpp::GetNamed("f"))));
-  EXPECT_FALSE(
-      Cpp::IsFunctionPointerType(Cpp::GetVariableType(Cpp::GetNamed("i"))));
+  EXPECT_TRUE(Cpp::IsFunctionPointerType(
+      Cpp::GetVariableType(Cpp::GetNamed("f", Cpp::GetGlobalScope(I)))));
+  EXPECT_FALSE(Cpp::IsFunctionPointerType(
+      Cpp::GetVariableType(Cpp::GetNamed("i", Cpp::GetGlobalScope(I)))));
 }
 
 TEST(TypeReflectionTest, OperatorSpelling) {
@@ -637,7 +637,7 @@ TEST(TypeReflectionTest, OperatorSpelling) {
 }
 
 void TypeReflectionTest_TypeQualifiers() {
-  Cpp::Declare(R"(
+  EXPECT_FALSE(Cpp::Declare(R"(
     namespace TypeQualifiers {
     int *a;
     int *__restrict__ b;
@@ -649,9 +649,9 @@ void TypeReflectionTest_TypeQualifiers() {
     int *__restrict__ const volatile h = nullptr;
     }
   )",
-               false, I);
+                            false, I));
 
-  Cpp::TCppScope_t ns = Cpp::GetNamed("a");
+  Cpp::TCppScope_t ns = Cpp::GetNamed("TypeQualifiers", Cpp::GetGlobalScope(I));
   EXPECT_TRUE(ns);
   Cpp::TCppType_t a = Cpp::GetVariableType(Cpp::GetNamed("a", ns));
   Cpp::TCppType_t b = Cpp::GetVariableType(Cpp::GetNamed("b", ns));
@@ -707,6 +707,8 @@ void TypeReflectionTest_TypeQualifiers() {
 }
 
 TEST(TypeReflectionTest, TypeReflectionTest) {
+  I = Cpp::CreateInterpreter({"-include", "new"});
+  EXPECT_TRUE(I);
   std::vector<std::pair<const char*, void (*)()>> fns = {
       {"TypeReflectionTest_GetTypeAsString",
        TypeReflectionTest_GetTypeAsString},

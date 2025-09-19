@@ -274,6 +274,9 @@ InterpreterInfo& getInterpInfo(compat::Interpreter* I) {
 
 int Declare(compat::Interpreter& I, const char* code, bool silent);
 static TCppType_t GetTypeFromScope(clang::Decl* D, compat::Interpreter& I);
+static TCppIndex_t GetNumBases(compat::Interpreter& I, clang::CXXRecordDecl* D);
+static TCppScope_t GetBaseClass(clang::CXXRecordDecl* CXXRD, TCppIndex_t ibase);
+static TCppScope_t GetGlobalScope(compat::Interpreter& I);
 
 static void ForceCodeGen(Decl* D, compat::Interpreter& I) {
   // The decl was deferred by CodeGen. Force its emission.
@@ -802,19 +805,15 @@ std::vector<TCppScope_t> GetUsingNamespaces(TCppScope_t scope) {
   return {};
 }
 
+static TCppScope_t GetGlobalScope(compat::Interpreter& I) {
+  return I.getSema().getASTContext().getTranslationUnitDecl()->getFirstDecl();
+}
+
 TCppScope_t GetGlobalScope(TInterp_t interp) {
-  // TODO: lock
-  if (interp) {
-    auto* I = static_cast<compat::Interpreter*>(interp);
-    return I->getSema()
-        .getASTContext()
-        .getTranslationUnitDecl()
-        ->getFirstDecl();
-  }
-  return getInterpInfo(NULLPTR)
-      ->getASTContext()
-      .getTranslationUnitDecl()
-      ->getFirstDecl();
+  auto* I = static_cast<compat::Interpreter*>(interp);
+  auto& IF = getInterpInfo(I);
+  LOCK(IF);
+  return GetGlobalScope(*IF);
 }
 
 static Decl* GetScopeFromType(QualType QT) {
@@ -892,7 +891,7 @@ TCppScope_t GetScopeFromCompleteName(const std::string& name,
 static clang::Decl* GetNamed(compat::Interpreter& I, const std::string& name,
                              Cpp::Decl* D) {
   if (!D)
-    D = static_cast<clang::Decl*>(GetGlobalScope(&I));
+    D = static_cast<clang::Decl*>(GetGlobalScope(I));
   D = GetUnderlyingScope(D);
   auto* Within = llvm::dyn_cast<clang::DeclContext>(D);
 
@@ -930,22 +929,37 @@ TCppScope_t GetParentScope(TCppScope_t scope) {
   return (TCppScope_t)P;
 }
 
+static TCppIndex_t GetNumBases(compat::Interpreter& I,
+                               clang::CXXRecordDecl* D) {
+  if (auto* CTSD = llvm::dyn_cast_or_null<ClassTemplateSpecializationDecl>(D)) {
+    if (!CTSD->hasDefinition())
+      compat::InstantiateClassTemplateSpecialization(I, CTSD);
+  }
+  if (D->hasDefinition())
+    return D->getNumBases();
+  return 0;
+}
+
 TCppIndex_t GetNumBases(TCppScope_t klass) {
   auto* D = (Decl*)klass;
-
-  if (auto* CTSD = llvm::dyn_cast_or_null<ClassTemplateSpecializationDecl>(D)) {
-    auto& IF = getInterpInfo(CTSD);
-    LOCK(IF);
-    if (!CTSD->hasDefinition())
-      compat::InstantiateClassTemplateSpecialization(*IF, CTSD);
-  }
   if (auto* CXXRD = llvm::dyn_cast_or_null<CXXRecordDecl>(D)) {
-    LOCK(getInterpInfo(CXXRD));
-    if (CXXRD->hasDefinition())
-      return CXXRD->getNumBases();
+    auto& IF = getInterpInfo(CXXRD);
+    LOCK(IF);
+    return GetNumBases(*IF, CXXRD);
   }
-
   return 0;
+}
+
+static TCppScope_t GetBaseClass(clang::CXXRecordDecl* CXXRD,
+                                TCppIndex_t ibase) {
+  if (CXXRD->getNumBases() <= ibase)
+    return nullptr;
+
+  auto type = (CXXRD->bases_begin() + ibase)->getType();
+  if (const auto* RT = type->getAs<RecordType>())
+    return (TCppScope_t)RT->getDecl();
+
+  return nullptr;
 }
 
 TCppScope_t GetBaseClass(TCppScope_t klass, TCppIndex_t ibase) {
@@ -955,14 +969,7 @@ TCppScope_t GetBaseClass(TCppScope_t klass, TCppIndex_t ibase) {
     return nullptr;
 
   LOCK(getInterpInfo(CXXRD));
-  if (CXXRD->getNumBases() <= ibase)
-    return nullptr;
-
-  auto type = (CXXRD->bases_begin() + ibase)->getType();
-  if (auto RT = type->getAs<RecordType>())
-    return (TCppScope_t)RT->getDecl();
-
-  return 0;
+  return GetBaseClass(CXXRD, ibase);
 }
 
 // FIXME: Consider dropping this interface as it seems the same as
@@ -1785,7 +1792,7 @@ intptr_t GetVariableOffset(compat::Interpreter& I, Decl* D,
       while (!stack.empty()) {
         CXXRecordDecl* RD = stack.back();
         stack.pop_back();
-        size_t num_bases = GetNumBases(RD);
+        size_t num_bases = GetNumBases(I, RD);
         bool flag = false;
         for (size_t i = 0; i < num_bases; i++) {
           auto* CRD = static_cast<CXXRecordDecl*>(GetBaseClass(RD, i));
