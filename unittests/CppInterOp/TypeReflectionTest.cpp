@@ -709,6 +709,7 @@ void TypeReflectionTest_TypeQualifiers() {
 TEST(TypeReflectionTest, TypeReflectionTest) {
   I = Cpp::CreateInterpreter({"-include", "new"});
   EXPECT_TRUE(I);
+
   std::vector<std::pair<const char*, void (*)()>> fns = {
       {"TypeReflectionTest_GetTypeAsString",
        TypeReflectionTest_GetTypeAsString},

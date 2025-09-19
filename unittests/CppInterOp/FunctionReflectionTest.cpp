@@ -471,7 +471,7 @@ TEST(FunctionReflectionTest, GetFunctionReturnType) {
       Cpp::GetTypeAsString(Cpp::GetFunctionReturnType(TemplateSubDecls[3])),
       "long");
 
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
   std::vector<Cpp::TemplateArgInfo> args = {C.IntTy.getAsOpaquePtr(),
                                             C.DoubleTy.getAsOpaquePtr()};
   std::vector<Cpp::TemplateArgInfo> explicit_args;
@@ -716,7 +716,7 @@ template<typename T> T TrivialFnTemplate() { return T(); }
 )";
 
   Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls[0], args1.data(),
@@ -744,7 +744,7 @@ TEST(FunctionReflectionTest, InstantiateTemplateMethod) {
   )";
 
   Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls[1], args1.data(),
@@ -923,7 +923,7 @@ TEST(FunctionReflectionTest, InstantiateVariadicFunction) {
   )";
 
   Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.DoubleTy.getAsOpaquePtr(),
                                              C.IntTy.getAsOpaquePtr()};
@@ -1019,7 +1019,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch1) {
   for (auto decl : Decls)
     if (Cpp::IsTemplatedFunction(decl)) candidates.push_back((Cpp::TCppFunction_t)decl);
 
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args0;
   std::vector<Cpp::TemplateArgInfo> args1 = {
@@ -1087,7 +1087,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch2) {
 
   EXPECT_EQ(candidates.size(), 5);
 
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   std::vector<Cpp::TemplateArgInfo> args2 = {
@@ -1160,7 +1160,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch3) {
 
   EXPECT_EQ(candidates.size(), 2);
 
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {
       Cpp::GetVariableType(Cpp::GetNamed("a")),
@@ -1235,7 +1235,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch4) {
 
   EXPECT_EQ(candidates.size(), 4);
 
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {};
   std::vector<Cpp::TemplateArgInfo> args2 = {C.IntTy.getAsOpaquePtr()};
@@ -1479,7 +1479,7 @@ TEST(FunctionReflectionTest, GetFunctionAddress) {
   Cpp::GetClassTemplatedMethods("add1", Cpp::GetGlobalScope(), funcs);
   EXPECT_EQ(funcs.size(), 1);
 
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
   std::vector<Cpp::TemplateArgInfo> argument = {C.DoubleTy.getAsOpaquePtr()};
   Cpp::TCppScope_t add1_double =
       Cpp::InstantiateTemplate(funcs[0], argument.data(), argument.size());
@@ -1766,7 +1766,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
 
   Cpp::TInterp_t I = GetAllTopLevelDecls(
       code1, Decls1, /*filter_implicitGenerated=*/false, interpreter_args);
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> argument = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls1[0], argument.data(),
@@ -2293,7 +2293,7 @@ TEST(FunctionReflectionTest, GetFunctionArgDefault) {
   EXPECT_EQ(Cpp::GetFunctionArgDefault(Decls[4], 2), "\'a\'");
   EXPECT_EQ(Cpp::GetFunctionArgDefault(Decls[4], 3), "0.");
 
-  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
   Cpp::TemplateArgInfo template_args[1] = {C.IntTy.getAsOpaquePtr()};
   Cpp::TCppScope_t my_struct =
       Cpp::InstantiateTemplate(Decls[6], template_args, 1);

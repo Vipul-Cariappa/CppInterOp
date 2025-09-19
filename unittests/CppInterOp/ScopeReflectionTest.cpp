@@ -25,10 +25,6 @@ using namespace TestUtils;
 using namespace llvm;
 using namespace clang;
 
-#undef getASTContext
-#undef getSema
-#define Interp (static_cast<compat::Interpreter*>(Cpp::GetInterpreter()))
-
 TEST(ScopeReflectionTest, Demangle) {
   if (llvm::sys::RunningOnValgrind())
     GTEST_SKIP() << "XFAIL due to Valgrind report";
@@ -180,8 +176,9 @@ TEST(ScopeReflectionTest, IsBuiltin) {
 
   std::vector<const char*> interpreter_args = { "-include", "new" };
 
-  Cpp::CreateInterpreter(interpreter_args);
-  ASTContext &C = Interp->getCI()->getASTContext();
+  Cpp::TInterp_t I = Cpp::CreateInterpreter(interpreter_args);
+  EXPECT_TRUE(I);
+  ASTContext& C = TU_getASTContext(I);
   EXPECT_TRUE(Cpp::IsBuiltin(C.BoolTy.getAsOpaquePtr()));
   EXPECT_TRUE(Cpp::IsBuiltin(C.CharTy.getAsOpaquePtr()));
   EXPECT_TRUE(Cpp::IsBuiltin(C.SignedCharTy.getAsOpaquePtr()));
@@ -195,8 +192,8 @@ TEST(ScopeReflectionTest, IsBuiltin) {
   EXPECT_TRUE(Cpp::IsBuiltin(C.getComplexType(C.Float128Ty).getAsOpaquePtr()));
 
   // std::complex
-  Interp->declare("#include <complex>");
-  Sema &S = Interp->getCI()->getSema();
+  EXPECT_FALSE(Cpp::Declare("#include <complex>", false, I));
+  Sema& S = TU_getSema(I);
   auto lookup = S.getStdNamespace()->lookup(&C.Idents.get("complex"));
   auto *CTD = cast<ClassTemplateDecl>(lookup.front());
   for (ClassTemplateSpecializationDecl *CTSD : CTD->specializations())
@@ -341,7 +338,8 @@ TEST(ScopeReflectionTest, GetCompleteName) {
                         template<typename T1, typename T2>
                         void fn(T1 t1, T2 t2) {}
                        )";
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
 
   EXPECT_EQ(Cpp::GetCompleteName(Decls[0]), "N");
   EXPECT_EQ(Cpp::GetCompleteName(Decls[1]), "C");
@@ -359,7 +357,7 @@ TEST(ScopeReflectionTest, GetCompleteName) {
   EXPECT_EQ(Cpp::GetCompleteName(Decls[11]), "fn");
   EXPECT_EQ(Cpp::GetCompleteName(nullptr), "<unnamed>");
 
-  ASTContext& C = Interp->getCI()->getASTContext();
+  ASTContext& C = TU_getASTContext(I);
   Cpp::TemplateArgInfo template_args[2] = {C.IntTy.getAsOpaquePtr(),
                                            C.DoubleTy.getAsOpaquePtr()};
   Cpp::TCppScope_t fn = Cpp::InstantiateTemplate(Decls[11], template_args, 2);
@@ -426,10 +424,10 @@ TEST(ScopeReflectionTest, GetUsingNamespaces) {
     using I = int;
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
   std::vector<void *> usingNamespaces;
-  usingNamespaces = Cpp::GetUsingNamespaces(
-          Decls[0]->getASTContext().getTranslationUnitDecl());
+  usingNamespaces = Cpp::GetUsingNamespaces(Cpp::GetGlobalScope(I));
 
   //EXPECT_EQ(Cpp::GetName(usingNamespaces[0]), "runtime");
   EXPECT_EQ(Cpp::GetName(usingNamespaces[usingNamespaces.size()-2]), "std");
@@ -480,8 +478,9 @@ TEST(ScopeReflectionTest, GetScope) {
                         typedef N::C T;
                        )";
 
-  Cpp::CreateInterpreter();
-  Interp->declare(code);
+  Cpp::TInterp_t I = Cpp::CreateInterpreter();
+  EXPECT_TRUE(I);
+  EXPECT_FALSE(Cpp::Declare(code.c_str(), false, I));
   Cpp::TCppScope_t tu = Cpp::GetScope("", 0);
   Cpp::TCppScope_t ns_N = Cpp::GetScope("N", 0);
   Cpp::TCppScope_t cl_C = Cpp::GetScope("C", ns_N);
@@ -505,9 +504,10 @@ TEST(ScopeReflectionTest, GetScopefromCompleteName) {
                         }
                        )";
 
-  Cpp::CreateInterpreter();
+  Cpp::TInterp_t I = Cpp::CreateInterpreter();
+  EXPECT_TRUE(I);
+  EXPECT_FALSE(Cpp::Declare(code.c_str(), false, I));
 
-  Interp->declare(code);
   EXPECT_EQ(Cpp::GetQualifiedName(Cpp::GetScopeFromCompleteName("N1")), "N1");
   EXPECT_EQ(Cpp::GetQualifiedName(Cpp::GetScopeFromCompleteName("N1::N2")), "N1::N2");
   EXPECT_EQ(Cpp::GetQualifiedName(Cpp::GetScopeFromCompleteName("N1::N2::C")), "N1::N2::C");
@@ -532,9 +532,10 @@ TEST(ScopeReflectionTest, GetNamed) {
 
   std::vector<const char*> interpreter_args = {"-include", "new"};
 
-  Cpp::CreateInterpreter(interpreter_args);
+  Cpp::TInterp_t I = Cpp::CreateInterpreter();
+  EXPECT_TRUE(I);
+  EXPECT_FALSE(Cpp::Declare(code.c_str(), false, I));
 
-  Interp->declare(code);
   Cpp::TCppScope_t ns_N1 = Cpp::GetNamed("N1", nullptr);
   Cpp::TCppScope_t ns_N2 = Cpp::GetNamed("N2", ns_N1);
   Cpp::TCppScope_t cl_C = Cpp::GetNamed("C", ns_N2);
@@ -550,7 +551,7 @@ TEST(ScopeReflectionTest, GetNamed) {
   EXPECT_EQ(Cpp::GetQualifiedName(Cpp::GetNamed("B", cl_C)), "N1::N2::C::B");
   EXPECT_EQ(Cpp::GetQualifiedName(Cpp::GetNamed("S", cl_C)), "N1::N2::C::S");
 
-  Interp->process("#include <string>");
+  EXPECT_FALSE(Cpp::Declare("#include <string>", false, I));
   Cpp::TCppScope_t std_ns = Cpp::GetNamed("std", nullptr);
   Cpp::TCppScope_t std_string_class = Cpp::GetNamed("string", std_ns);
   Cpp::TCppScope_t std_string_npos_var = Cpp::GetNamed("npos", std_string_class);
@@ -571,9 +572,10 @@ TEST(ScopeReflectionTest, GetParentScope) {
                         }
                        )";
 
-  Cpp::CreateInterpreter();
+  Cpp::TInterp_t I = Cpp::CreateInterpreter();
+  EXPECT_TRUE(I);
+  EXPECT_FALSE(Cpp::Declare(code.c_str(), false, I));
 
-  Interp->declare(code);
   Cpp::TCppScope_t ns_N1 = Cpp::GetNamed("N1");
   Cpp::TCppScope_t ns_N2 = Cpp::GetNamed("N2", ns_N1);
   Cpp::TCppScope_t cl_C = Cpp::GetNamed("C", ns_N2);
@@ -837,6 +839,7 @@ TEST(ScopeReflectionTest, GetAllCppNames) {
 }
 
 TEST(ScopeReflectionTest, InstantiateNNTPClassTemplate) {
+  // XXX: no parallel
   std::vector<Decl *> Decls;
   std::string code = R"(
     template <int N>
@@ -849,9 +852,10 @@ TEST(ScopeReflectionTest, InstantiateNNTPClassTemplate) {
       enum { value = 1 };
     };)";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I1 = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I1);
 
-  ASTContext &C = Interp->getCI()->getASTContext();
+  ASTContext& C = TU_getASTContext(I1);
   Cpp::TCppType_t IntTy = C.IntTy.getAsOpaquePtr();
   std::vector<Cpp::TemplateArgInfo> args1 = {{IntTy, "5"}};
   EXPECT_TRUE(Cpp::InstantiateTemplate(Decls[0], args1.data(),
@@ -875,8 +879,9 @@ TEST(ScopeReflectionTest, InstantiateVarTemplate) {
 template<class T> constexpr T pi = T(3.1415926535897932385L);
 )";
 
-  GetAllTopLevelDecls(code, Decls);
-  ASTContext& C = Interp->getCI()->getASTContext();
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls[0], args1.data(),
@@ -899,8 +904,9 @@ TEST(ScopeReflectionTest, InstantiateFunctionTemplate) {
 template<typename T> T TrivialFnTemplate() { return T(); }
 )";
 
-  GetAllTopLevelDecls(code, Decls);
-  ASTContext& C = Interp->getCI()->getASTContext();
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls[0], args1.data(),
@@ -921,9 +927,12 @@ TEST(ScopeReflectionTest, InstantiateTemplateFunctionFromString) {
   if (llvm::sys::RunningOnValgrind())
     GTEST_SKIP() << "XFAIL due to Valgrind report";
   std::vector<const char*> interpreter_args = {"-include", "new"};
-  Cpp::CreateInterpreter(interpreter_args);
+
   std::string code = R"(#include <memory>)";
-  Interp->process(code);
+  Cpp::TInterp_t I = Cpp::CreateInterpreter(interpreter_args);
+  EXPECT_TRUE(I);
+  EXPECT_FALSE(Cpp::Declare(code.c_str(), false, I));
+
   const char* str = "std::make_unique<int,int>";
   auto* Instance1 = (Decl*)Cpp::InstantiateTemplateFunctionFromString(str);
   EXPECT_TRUE(Instance1);
@@ -969,8 +978,9 @@ TEST(ScopeReflectionTest, InstantiateTemplate) {
     class C2{};
   )";
 
-  GetAllTopLevelDecls(code, Decls);
-  ASTContext &C = Interp->getCI()->getASTContext();
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
+  ASTContext& C = TU_getASTContext(I);
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls[0], args1.data(),
@@ -1070,15 +1080,14 @@ TEST(ScopeReflectionTest, IncludeVector) {
     #include <iostream>
   )";
   std::vector<const char*> interpreter_args = {"-include", "new"};
-  Cpp::CreateInterpreter(interpreter_args);
-  Interp->declare(code);
+  Cpp::TInterp_t I = Cpp::CreateInterpreter(interpreter_args);
+  EXPECT_TRUE(I);
+  EXPECT_FALSE(Cpp::Declare(code.c_str(), false, I));
 }
 
 TEST(ScopeReflectionTest, GetOperator) {
   if (llvm::sys::RunningOnValgrind())
     GTEST_SKIP() << "XFAIL due to Valgrind report";
-
-  Cpp::CreateInterpreter();
 
   std::string code = R"(
     class MyClass {
@@ -1112,7 +1121,9 @@ TEST(ScopeReflectionTest, GetOperator) {
     }
   )";
 
-  Cpp::Declare(code.c_str());
+  Cpp::TInterp_t I = Cpp::CreateInterpreter();
+  EXPECT_TRUE(I);
+  EXPECT_FALSE(Cpp::Declare(code.c_str(), false, I));
 
   std::vector<Cpp::TCppFunction_t> ops;
 
@@ -1163,7 +1174,7 @@ TEST(ScopeReflectionTest, GetOperator) {
     }
   };
   )";
-  Cpp::Declare(inheritance_code.c_str());
+  EXPECT_FALSE(Cpp::Declare(inheritance_code.c_str(), false, I));
 
   ops.clear();
   Cpp::GetOperator(Cpp::GetScope("Child"), Cpp::Operator::OP_Plus, ops);

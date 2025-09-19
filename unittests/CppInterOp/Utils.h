@@ -19,9 +19,9 @@ namespace clang {
   class Decl;
 }
 
-// #define getSema(I) (static_cast<compat::Interpreter*>(I))->getSema()
-// #define getASTContext(I)
-// (static_cast<compat::Interpreter*>(I))->getASTContext()
+#define TU_getSema(I) (static_cast<compat::Interpreter*>(I))->getSema()
+#define TU_getASTContext(I)                                                    \
+  (static_cast<compat::Interpreter*>(I))->getASTContext()
 
 namespace TestUtils {
 TInterp_t

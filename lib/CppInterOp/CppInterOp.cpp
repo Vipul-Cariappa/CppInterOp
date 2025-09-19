@@ -879,9 +879,9 @@ TCppScope_t GetScopeFromCompleteName(const std::string& name,
   std::string delim = "::";
   size_t start = 0;
   size_t end = name.find(delim);
-  TCppScope_t curr_scope = 0;
+  TCppScope_t curr_scope = Cpp::GetGlobalScope(interp);
   while (end != std::string::npos) {
-    curr_scope = GetScope(name.substr(start, end - start), curr_scope, interp);
+    curr_scope = GetScope(name.substr(start, end - start), curr_scope);
     start = end + delim.length();
     end = name.find(delim, start);
   }
