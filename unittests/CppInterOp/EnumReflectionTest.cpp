@@ -341,8 +341,8 @@ void EnumReflectionTest_GetEnums() {
     int myVariable;
     )";
 
-  Cpp::CreateInterpreter();
-  Interp->declare(code);
+  Cpp::TInterp_t I = Cpp::CreateInterpreter();
+  Cpp::Declare(code.c_str(), false, I);
   std::vector<std::string> enumNames1, enumNames2, enumNames3, enumNames4;
   Cpp::TCppScope_t globalscope = Cpp::GetScope("", 0);
   Cpp::TCppScope_t Animals_scope = Cpp::GetScope("Animals", 0);
@@ -363,7 +363,7 @@ void EnumReflectionTest_GetEnums() {
   EXPECT_TRUE(enumNames4.empty());
 }
 
-TEST(ScopeReflectionTest, IsEnumConstant) {
+TEST(EnumReflectionTest, EnumReflectionTest) {
   std::vector<std::pair<const char*, void (*)()>> fns = {
       {"ScopeReflectionTest_IsEnumScope", ScopeReflectionTest_IsEnumScope},
       {"ScopeReflectionTest_IsEnumConstant",

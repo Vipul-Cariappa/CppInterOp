@@ -19,11 +19,11 @@ using namespace clang;
 using namespace llvm;
 using namespace std::chrono_literals;
 
-void TestUtils::GetAllTopLevelDecls(
+Cpp::TInterp_t TestUtils::GetAllTopLevelDecls(
     const std::string& code, std::vector<Decl*>& Decls,
     bool filter_implicitGenerated /* = false */,
     const std::vector<const char*>& interpreter_args /* = {} */) {
-  Cpp::CreateInterpreter(interpreter_args);
+  Cpp::TInterp_t I = Cpp::CreateInterpreter(interpreter_args);
 #ifdef CPPINTEROP_USE_CLING
   cling::Transaction *T = nullptr;
   Interp->declare(code, &T);
@@ -38,6 +38,7 @@ void TestUtils::GetAllTopLevelDecls(
     }
   }
 #else
+  auto* Interp = static_cast<compat::Interpreter*>(I);
   PartialTranslationUnit *T = nullptr;
   Interp->process(code, /*Value*/nullptr, &T);
   for (auto *D : T->TUPart->decls()) {
@@ -46,6 +47,7 @@ void TestUtils::GetAllTopLevelDecls(
     Decls.push_back(D);
   }
 #endif
+  return I;
 }
 
 void TestUtils::GetAllSubDecls(Decl *D, std::vector<Decl*>& SubDecls,

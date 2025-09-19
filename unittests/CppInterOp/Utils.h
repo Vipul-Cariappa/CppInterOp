@@ -18,12 +18,16 @@ using namespace llvm;
 namespace clang {
   class Decl;
 }
-#define Interp (static_cast<compat::Interpreter*>(Cpp::GetInterpreter()))
+
+// #define getSema(I) (static_cast<compat::Interpreter*>(I))->getSema()
+// #define getASTContext(I)
+// (static_cast<compat::Interpreter*>(I))->getASTContext()
+
 namespace TestUtils {
-void GetAllTopLevelDecls(const std::string& code,
-                         std::vector<clang::Decl*>& Decls,
-                         bool filter_implicitGenerated = false,
-                         const std::vector<const char*>& interpreter_args = {});
+TInterp_t
+GetAllTopLevelDecls(const std::string& code, std::vector<clang::Decl*>& Decls,
+                    bool filter_implicitGenerated = false,
+                    const std::vector<const char*>& interpreter_args = {});
 void GetAllSubDecls(clang::Decl* D, std::vector<clang::Decl*>& SubDecls,
                     bool filter_implicitGenerated = false);
 } // end namespace TestUtils

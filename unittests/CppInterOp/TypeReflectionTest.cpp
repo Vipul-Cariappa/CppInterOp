@@ -17,7 +17,9 @@ using namespace TestUtils;
 using namespace llvm;
 using namespace clang;
 
-TEST(TypeReflectionTest, GetTypeAsString) {
+static Cpp::TInterp_t I = nullptr;
+
+void TypeReflectionTest_GetTypeAsString() {
   std::vector<Decl *> Decls;
   std::string code = R"(
     namespace N {
@@ -38,7 +40,8 @@ TEST(TypeReflectionTest, GetTypeAsString) {
 
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
   QualType QT1 = llvm::dyn_cast<VarDecl>(Decls[1])->getType();
   QualType QT2 = llvm::dyn_cast<VarDecl>(Decls[2])->getType();
   QualType QT3 = llvm::dyn_cast<VarDecl>(Decls[3])->getType();
@@ -57,7 +60,7 @@ TEST(TypeReflectionTest, GetTypeAsString) {
   EXPECT_EQ(Cpp::GetTypeAsString(QT7.getAsOpaquePtr()), "char[4]");
 }
 
-TEST(TypeReflectionTest, GetSizeOfType) {
+void TypeReflectionTest_GetSizeOfType() {
   std::vector<Decl *> Decls;
   std::string code =  R"(
     struct S {
@@ -73,7 +76,8 @@ TEST(TypeReflectionTest, GetSizeOfType) {
     FwdDecl *f;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
 
   EXPECT_EQ(Cpp::GetSizeOfType(Cpp::GetVariableType(Decls[1])), 1);
   EXPECT_EQ(Cpp::GetSizeOfType(Cpp::GetVariableType(Decls[2])), 4);
@@ -85,7 +89,7 @@ TEST(TypeReflectionTest, GetSizeOfType) {
             sizeof(intptr_t));
 }
 
-TEST(TypeReflectionTest, GetCanonicalType) {
+void TypeReflectionTest_GetCanonicalType() {
   std::vector<Decl *> Decls;
   std::string code =  R"(
     typedef int I;
@@ -95,7 +99,8 @@ TEST(TypeReflectionTest, GetCanonicalType) {
     D d;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
 
   auto D2 = Cpp::GetVariableType(Decls[2]);
   auto D3 = Cpp::GetVariableType(Decls[3]);
@@ -109,13 +114,14 @@ TEST(TypeReflectionTest, GetCanonicalType) {
 }
 
 TEST(TypeReflectionTest, GetType) {
+  // XXX: no parallel
   Cpp::CreateInterpreter();
 
   std::string code =  R"(
     class A {};
     )";
 
-  Interp->declare(code);
+  Cpp::Declare(code.c_str());
 
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetType("int")), "int");
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetType("double")), "double");
@@ -133,7 +139,7 @@ TEST(TypeReflectionTest, GetType) {
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetType("struct")),"NULL TYPE");
 }
 
-TEST(TypeReflectionTest, IsRecordType) {
+void TypeReflectionTest_IsRecordType() {
   std::vector<Decl *> Decls;
 
   std::string code = R"(
@@ -167,7 +173,8 @@ TEST(TypeReflectionTest, IsRecordType) {
     C cvar10[] = {};
     C *cvar11[] = {cvar8};
     )";
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
 
   auto is_var_of_record_ty = [] (Decl *D) {
     return Cpp::IsRecordType(Cpp::GetVariableType(D));
@@ -200,7 +207,7 @@ TEST(TypeReflectionTest, IsRecordType) {
   EXPECT_FALSE(is_var_of_record_ty(Decls[24]));
 }
 
-TEST(TypeReflectionTest, GetUnderlyingType) {
+void TypeReflectionTest_GetUnderlyingType() {
   std::vector<Decl *> Decls;
 
   std::string code = R"(
@@ -241,7 +248,10 @@ TEST(TypeReflectionTest, GetUnderlyingType) {
     enum E { e1, e2 };
     E evar0 = e1;
     )";
-  GetAllTopLevelDecls(code, Decls);
+
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
+
   auto get_underly_var_type_as_str = [] (Decl *D) {
     return Cpp::GetTypeAsString(Cpp::GetUnderlyingType(Cpp::GetVariableType(D)));
   };
@@ -278,7 +288,7 @@ TEST(TypeReflectionTest, GetUnderlyingType) {
   EXPECT_EQ(get_underly_var_type_as_str(Decls[30]), "E");
 }
 
-TEST(TypeReflectionTest, IsUnderlyingTypeRecordType) {
+void TypeReflectionTest_IsUnderlyingTypeRecordType() {
   std::vector<Decl *> Decls;
 
   std::string code = R"(
@@ -312,7 +322,9 @@ TEST(TypeReflectionTest, IsUnderlyingTypeRecordType) {
     C cvar10[] = {};
     C *cvar11[] = {cvar8};
     )";
-  GetAllTopLevelDecls(code, Decls);
+
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
 
   auto is_var_of_underly_record_ty = [] (Decl *D) {
     return Cpp::IsRecordType(Cpp::GetUnderlyingType(Cpp::GetVariableType(D)));
@@ -346,6 +358,7 @@ TEST(TypeReflectionTest, IsUnderlyingTypeRecordType) {
 }
 
 TEST(TypeReflectionTest, GetComplexType) {
+  // XXX: no parallel
   Cpp::CreateInterpreter();
 
   auto get_complex_type_as_string = [&](const std::string &element_type) {
@@ -379,7 +392,7 @@ TEST(TypeReflectionTest, GetComplexType) {
   clang_Interpreter_dispose(I);
 }
 
-TEST(TypeReflectionTest, GetTypeFromScope) {
+void TypeReflectionTest_GetTypeFromScope() {
   std::vector<Decl *> Decls;
 
   std::string code =  R"(
@@ -388,7 +401,8 @@ TEST(TypeReflectionTest, GetTypeFromScope) {
     int a = 10;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
 
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetTypeFromScope(Decls[0])), "C");
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetTypeFromScope(Decls[1])), "S");
@@ -396,7 +410,7 @@ TEST(TypeReflectionTest, GetTypeFromScope) {
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetTypeFromScope(nullptr)), "NULL TYPE");
 }
 
-TEST(TypeReflectionTest, IsTypeDerivedFrom) {
+void TypeReflectionTest_IsTypeDerivedFrom() {
   std::vector<Decl *> Decls;
 
   std::string code = R"(
@@ -413,7 +427,8 @@ TEST(TypeReflectionTest, IsTypeDerivedFrom) {
       E e;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
 
   Cpp::TCppType_t type_A = Cpp::GetVariableType(Decls[5]);
   Cpp::TCppType_t type_B = Cpp::GetVariableType(Decls[6]);
@@ -433,7 +448,7 @@ TEST(TypeReflectionTest, IsTypeDerivedFrom) {
   EXPECT_FALSE(Cpp::IsTypeDerivedFrom(type_A, type_E));
 }
 
-TEST(TypeReflectionTest, GetDimensions) {
+void TypeReflectionTest_GetDimensions() {
   std::vector<Decl *> Decls, SubDecls;
 
   std::string code = R"(
@@ -458,7 +473,8 @@ TEST(TypeReflectionTest, GetDimensions) {
       S3<int[6]>::type arr;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
 
   std::vector<long int> dims, truth_dims;
 
@@ -529,6 +545,7 @@ TEST(TypeReflectionTest, GetDimensions) {
 }
 
 TEST(TypeReflectionTest, IsPODType) {
+  // XXX: no parallel
   std::vector<Decl *> Decls;
 
   std::string code = R"(
@@ -544,13 +561,15 @@ TEST(TypeReflectionTest, IsPODType) {
     B b;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  EXPECT_TRUE(I);
+
   EXPECT_TRUE(Cpp::IsPODType(Cpp::GetVariableType(Decls[2])));
   EXPECT_FALSE(Cpp::IsPODType(Cpp::GetVariableType(Decls[3])));
   EXPECT_FALSE(Cpp::IsPODType(0));
 }
 
-TEST(TypeReflectionTest, IsSmartPtrType) {
+void TypeReflectionTest_IsSmartPtrType() {
 #if CLANG_VERSION_MAJOR == 18 && defined(CPPINTEROP_USE_CLING) &&              \
     defined(_WIN32) && (defined(_M_ARM) || defined(_M_ARM64))
   GTEST_SKIP() << "Test fails with Cling on Windows on ARM";
@@ -558,10 +577,7 @@ TEST(TypeReflectionTest, IsSmartPtrType) {
   if (llvm::sys::RunningOnValgrind())
     GTEST_SKIP() << "XFAIL due to Valgrind report";
 
-  std::vector<const char*> interpreter_args = {"-include", "new"};
-  Cpp::CreateInterpreter(interpreter_args);
-
-  Interp->declare(R"(
+  Cpp::Declare(R"(
     #include <memory>
 
     template<typename T>
@@ -580,7 +596,8 @@ TEST(TypeReflectionTest, IsSmartPtrType) {
 
     C *raw_ptr;
     C object();
-  )");
+  )",
+               false, I);
 
   auto get_type_from_varname = [&](const std::string &varname) {
     return Cpp::GetVariableType(Cpp::GetNamed(varname));
@@ -596,16 +613,14 @@ TEST(TypeReflectionTest, IsSmartPtrType) {
   EXPECT_FALSE(Cpp::IsSmartPtrType(get_type_from_varname("object")));
 }
 
-TEST(TypeReflectionTest, IsFunctionPointerType) {
-  std::vector<const char*> interpreter_args = {"-include", "new"};
-  Cpp::CreateInterpreter(interpreter_args);
-
-  Interp->declare(R"(
+void TypeReflectionTest_IsFunctionPointerType() {
+  Cpp::Declare(R"(
     typedef int (*int_func)(int, int);
     int sum(int x, int y) { return x + y; }
     int_func f = sum;
     int i = 2;
-  )");
+  )",
+               false, I);
 
   EXPECT_TRUE(
       Cpp::IsFunctionPointerType(Cpp::GetVariableType(Cpp::GetNamed("f"))));
@@ -621,9 +636,9 @@ TEST(TypeReflectionTest, OperatorSpelling) {
   EXPECT_EQ(Cpp::GetOperatorFromSpelling("invalid"), Cpp::OP_None);
 }
 
-TEST(TypeReflectionTest, TypeQualifiers) {
-  Cpp::CreateInterpreter();
+void TypeReflectionTest_TypeQualifiers() {
   Cpp::Declare(R"(
+    namespace TypeQualifiers {
     int *a;
     int *__restrict__ b;
     int *const c = 0;
@@ -632,16 +647,20 @@ TEST(TypeReflectionTest, TypeQualifiers) {
     int *__restrict__ const f = nullptr;
     int *__restrict__ volatile g;
     int *__restrict__ const volatile h = nullptr;
-  )");
+    }
+  )",
+               false, I);
 
-  Cpp::TCppType_t a = Cpp::GetVariableType(Cpp::GetNamed("a"));
-  Cpp::TCppType_t b = Cpp::GetVariableType(Cpp::GetNamed("b"));
-  Cpp::TCppType_t c = Cpp::GetVariableType(Cpp::GetNamed("c"));
-  Cpp::TCppType_t d = Cpp::GetVariableType(Cpp::GetNamed("d"));
-  Cpp::TCppType_t e = Cpp::GetVariableType(Cpp::GetNamed("e"));
-  Cpp::TCppType_t f = Cpp::GetVariableType(Cpp::GetNamed("f"));
-  Cpp::TCppType_t g = Cpp::GetVariableType(Cpp::GetNamed("g"));
-  Cpp::TCppType_t h = Cpp::GetVariableType(Cpp::GetNamed("h"));
+  Cpp::TCppScope_t ns = Cpp::GetNamed("a");
+  EXPECT_TRUE(ns);
+  Cpp::TCppType_t a = Cpp::GetVariableType(Cpp::GetNamed("a", ns));
+  Cpp::TCppType_t b = Cpp::GetVariableType(Cpp::GetNamed("b", ns));
+  Cpp::TCppType_t c = Cpp::GetVariableType(Cpp::GetNamed("c", ns));
+  Cpp::TCppType_t d = Cpp::GetVariableType(Cpp::GetNamed("d", ns));
+  Cpp::TCppType_t e = Cpp::GetVariableType(Cpp::GetNamed("e", ns));
+  Cpp::TCppType_t f = Cpp::GetVariableType(Cpp::GetNamed("f", ns));
+  Cpp::TCppType_t g = Cpp::GetVariableType(Cpp::GetNamed("g", ns));
+  Cpp::TCppType_t h = Cpp::GetVariableType(Cpp::GetNamed("h", ns));
 
   EXPECT_FALSE(Cpp::HasTypeQualifier(nullptr, Cpp::QualKind::Const));
   EXPECT_FALSE(Cpp::RemoveTypeQualifier(nullptr, Cpp::QualKind::Const));
@@ -685,4 +704,29 @@ TEST(TypeReflectionTest, TypeQualifiers) {
   EXPECT_EQ(h, Cpp::AddTypeQualifier(a, Cpp::QualKind::Const |
                                             Cpp::QualKind::Volatile |
                                             Cpp::QualKind::Restrict));
+}
+
+TEST(TypeReflectionTest, TypeReflectionTest) {
+  std::vector<std::pair<const char*, void (*)()>> fns = {
+      {"TypeReflectionTest_GetTypeAsString",
+       TypeReflectionTest_GetTypeAsString},
+      {"TypeReflectionTest_GetSizeOfType", TypeReflectionTest_GetSizeOfType},
+      {"TypeReflectionTest_GetCanonicalType",
+       TypeReflectionTest_GetCanonicalType},
+      {"TypeReflectionTest_IsRecordType", TypeReflectionTest_IsRecordType},
+      {"TypeReflectionTest_GetUnderlyingType",
+       TypeReflectionTest_GetUnderlyingType},
+      {"TypeReflectionTest_IsUnderlyingTypeRecordType",
+       TypeReflectionTest_IsUnderlyingTypeRecordType},
+      {"TypeReflectionTest_GetTypeFromScope",
+       TypeReflectionTest_GetTypeFromScope},
+      {"TypeReflectionTest_IsTypeDerivedFrom",
+       TypeReflectionTest_IsTypeDerivedFrom},
+      {"TypeReflectionTest_GetDimensions", TypeReflectionTest_GetDimensions},
+      {"TypeReflectionTest_IsSmartPtrType", TypeReflectionTest_IsSmartPtrType},
+      {"TypeReflectionTest_IsFunctionPointerType",
+       TypeReflectionTest_IsFunctionPointerType},
+      {"TypeReflectionTest_TypeQualifiers", TypeReflectionTest_TypeQualifiers},
+  };
+  ThreadPoolExecutor::run(fns);
 }

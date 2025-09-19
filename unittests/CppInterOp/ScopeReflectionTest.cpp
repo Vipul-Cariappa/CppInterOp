@@ -25,6 +25,10 @@ using namespace TestUtils;
 using namespace llvm;
 using namespace clang;
 
+#undef getASTContext
+#undef getSema
+#define Interp (static_cast<compat::Interpreter*>(Cpp::GetInterpreter()))
+
 TEST(ScopeReflectionTest, Demangle) {
   if (llvm::sys::RunningOnValgrind())
     GTEST_SKIP() << "XFAIL due to Valgrind report";

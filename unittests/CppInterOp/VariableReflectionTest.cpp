@@ -16,6 +16,10 @@ using namespace TestUtils;
 using namespace llvm;
 using namespace clang;
 
+#undef getASTContext
+#undef getSema
+#define Interp (static_cast<compat::Interpreter*>(Cpp::GetInterpreter()))
+
 TEST(VariableReflectionTest, GetDatamembers) {
   std::vector<Decl*> Decls;
   std::string code = R"(

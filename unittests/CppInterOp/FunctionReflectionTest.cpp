@@ -49,7 +49,7 @@ TEST(FunctionReflectionTest, GetClassMethods) {
     using MyInt = int;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I1 = GetAllTopLevelDecls(code, Decls);
 
   auto get_method_name = [](Cpp::TCppFunction_t method) {
     return Cpp::GetFunctionSignature(method);
@@ -130,7 +130,7 @@ TEST(FunctionReflectionTest, GetClassMethods) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  I1 = GetAllTopLevelDecls(code, Decls);
   EXPECT_EQ(Decls.size(), 2);
 
   std::vector<Cpp::TCppFunction_t> templ_methods1;
@@ -157,7 +157,7 @@ TEST(FunctionReflectionTest, GetClassMethods) {
   EXPECT_EQ(get_method_name(templ_methods2[6]), "inline TT::~TT()");
 
   // C API
-  auto* I = clang_createInterpreterFromRawPtr(Cpp::GetInterpreter());
+  auto* I = clang_createInterpreterFromRawPtr(Cpp::GetInterpreter(I1));
   auto C_API_SHIM = [&](Cpp::TCppFunction_t method) {
     auto Str = clang_getFunctionSignature(
         make_scope(static_cast<clang::Decl*>(method), I));
@@ -180,7 +180,7 @@ TEST(FunctionReflectionTest, ConstructorInGetClassMethods) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
 
   auto has_constructor = [](Decl* D) {
     std::vector<Cpp::TCppFunction_t> methods;
@@ -221,7 +221,7 @@ TEST(FunctionReflectionTest, HasDefaultConstructor) {
 
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I1 = GetAllTopLevelDecls(code, Decls);
   EXPECT_TRUE(Cpp::HasDefaultConstructor(Decls[0]));
   EXPECT_TRUE(Cpp::HasDefaultConstructor(Decls[1]));
   EXPECT_FALSE(Cpp::HasDefaultConstructor(Decls[3]));
@@ -254,7 +254,7 @@ TEST(FunctionReflectionTest, GetDestructor) {
     }
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I1 = GetAllTopLevelDecls(code, Decls);
 
   EXPECT_TRUE(Cpp::GetDestructor(Decls[0]));
   EXPECT_TRUE(Cpp::GetDestructor(Decls[1]));
@@ -294,7 +294,7 @@ TEST(FunctionReflectionTest, GetFunctionsUsingName) {
     typedef A shadow_A;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
 
   // This lambda can take in the scope and the name of the function
   // and returns the size of the vector returned by GetFunctionsUsingName
@@ -340,7 +340,7 @@ TEST(FunctionReflectionTest, GetClassDecls) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   std::vector<Cpp::TCppFunction_t> methods;
@@ -377,7 +377,7 @@ TEST(FunctionReflectionTest, GetFunctionTemplatedDecls) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   std::vector<Cpp::TCppFunction_t> template_methods;
@@ -437,7 +437,7 @@ TEST(FunctionReflectionTest, GetFunctionReturnType) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls, true);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls, true);
   GetAllSubDecls(Decls[2], SubDecls);
   GetAllSubDecls(Decls[12], TemplateSubDecls);
 
@@ -471,7 +471,7 @@ TEST(FunctionReflectionTest, GetFunctionReturnType) {
       Cpp::GetTypeAsString(Cpp::GetFunctionReturnType(TemplateSubDecls[3])),
       "long");
 
-  ASTContext& C = Interp->getCI()->getASTContext();
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
   std::vector<Cpp::TemplateArgInfo> args = {C.IntTy.getAsOpaquePtr(),
                                             C.DoubleTy.getAsOpaquePtr()};
   std::vector<Cpp::TemplateArgInfo> explicit_args;
@@ -513,7 +513,7 @@ TEST(FunctionReflectionTest, GetFunctionNumArgs) {
 
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[5], TemplateSubDecls);
   EXPECT_EQ(Cpp::GetFunctionNumArgs(Decls[0]), (size_t) 0);
   EXPECT_EQ(Cpp::GetFunctionNumArgs(Decls[1]), (size_t) 4);
@@ -547,7 +547,7 @@ TEST(FunctionReflectionTest, GetFunctionRequiredArgs) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[5], TemplateSubDecls);
 
   EXPECT_EQ(Cpp::GetFunctionRequiredArgs(Decls[0]), (size_t) 0);
@@ -569,7 +569,7 @@ TEST(FunctionReflectionTest, GetFunctionArgType) {
     int a;
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetFunctionArgType(Decls[0], 0)), "int");
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetFunctionArgType(Decls[0], 1)), "double");
   EXPECT_EQ(Cpp::GetTypeAsString(Cpp::GetFunctionArgType(Decls[0], 2)), "long");
@@ -644,7 +644,7 @@ TEST(FunctionReflectionTest, IsTemplatedFunction) {
     class ABC {};
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I1 = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[2], SubDeclsC1);
 
   EXPECT_FALSE(Cpp::IsTemplatedFunction(Decls[0]));
@@ -679,7 +679,7 @@ TEST(FunctionReflectionTest, ExistsFunctionTemplate) {
     void f(char ch) {}
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I1 = GetAllTopLevelDecls(code, Decls);
   EXPECT_TRUE(Cpp::ExistsFunctionTemplate("f", 0));
   EXPECT_TRUE(Cpp::ExistsFunctionTemplate("f", Decls[1]));
   EXPECT_FALSE(Cpp::ExistsFunctionTemplate("f", Decls[2]));
@@ -703,7 +703,7 @@ TEST(FunctionReflectionTest, InstantiateTemplateFunctionFromString) {
   std::vector<const char*> interpreter_args = { "-include", "new" };
   Cpp::CreateInterpreter(interpreter_args);
   std::string code = R"(#include <memory>)";
-  Interp->process(code);
+  Cpp::Process(code.c_str());
   const char* str = "std::make_unique<int,int>";
   auto* Instance1 = (Decl*)Cpp::InstantiateTemplateFunctionFromString(str);
   EXPECT_TRUE(Instance1);
@@ -715,8 +715,8 @@ TEST(FunctionReflectionTest, InstantiateFunctionTemplate) {
 template<typename T> T TrivialFnTemplate() { return T(); }
 )";
 
-  GetAllTopLevelDecls(code, Decls);
-  ASTContext& C = Interp->getCI()->getASTContext();
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls[0], args1.data(),
@@ -743,8 +743,8 @@ TEST(FunctionReflectionTest, InstantiateTemplateMethod) {
       }
   )";
 
-  GetAllTopLevelDecls(code, Decls);
-  ASTContext& C = Interp->getCI()->getASTContext();
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls[1], args1.data(),
@@ -784,7 +784,7 @@ TEST(FunctionReflectionTest, LookupConstructors) {
     MyClass::MyClass(T t) {}
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   std::vector<Cpp::TCppFunction_t> ctors;
   Cpp::LookupConstructors("MyClass", Decls[0], ctors);
 
@@ -833,7 +833,7 @@ TEST(FunctionReflectionTest, GetClassTemplatedMethods) {
     void MyClass::templatedStaticMethod(T param) {}
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   std::vector<Cpp::TCppFunction_t> templatedMethods;
   Cpp::GetClassTemplatedMethods("MyClass", Decls[0], templatedMethods);
   Cpp::GetClassTemplatedMethods("templatedMethod", Decls[0], templatedMethods);
@@ -889,7 +889,7 @@ TEST(FunctionReflectionTest, GetClassTemplatedMethods_VariadicsAndOthers) {
     void MyClass::staticVariadic(T t, Args... args) {}
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   std::vector<Cpp::TCppFunction_t> templatedMethods;
   Cpp::GetClassTemplatedMethods("fixedMethod", Decls[0], templatedMethods);
   Cpp::GetClassTemplatedMethods("defaultMethod", Decls[0], templatedMethods);
@@ -922,8 +922,8 @@ TEST(FunctionReflectionTest, InstantiateVariadicFunction) {
     void VariadicFnExtended(int fixedParam, Args... args) {}
   )";
 
-  GetAllTopLevelDecls(code, Decls);
-  ASTContext& C = Interp->getCI()->getASTContext();
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.DoubleTy.getAsOpaquePtr(),
                                              C.IntTy.getAsOpaquePtr()};
@@ -1011,7 +1011,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch1) {
       }
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   std::vector<Cpp::TCppFunction_t> candidates;
 
   EXPECT_FALSE(Cpp::BestOverloadFunctionMatch({}, {}, {}));
@@ -1019,7 +1019,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch1) {
   for (auto decl : Decls)
     if (Cpp::IsTemplatedFunction(decl)) candidates.push_back((Cpp::TCppFunction_t)decl);
 
-  ASTContext& C = Interp->getCI()->getASTContext();
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
 
   std::vector<Cpp::TemplateArgInfo> args0;
   std::vector<Cpp::TemplateArgInfo> args1 = {
@@ -1078,7 +1078,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch2) {
     void somefunc(int arg1, double arg2) {}
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   std::vector<Cpp::TCppFunction_t> candidates;
 
   for (auto decl : Decls)
@@ -1087,7 +1087,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch2) {
 
   EXPECT_EQ(candidates.size(), 5);
 
-  ASTContext& C = Interp->getCI()->getASTContext();
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
 
   std::vector<Cpp::TemplateArgInfo> args1 = {C.IntTy.getAsOpaquePtr()};
   std::vector<Cpp::TemplateArgInfo> args2 = {
@@ -1151,7 +1151,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch3) {
     }
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   std::vector<Cpp::TCppFunction_t> candidates;
 
   for (auto decl : Decls)
@@ -1160,7 +1160,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch3) {
 
   EXPECT_EQ(candidates.size(), 2);
 
-  ASTContext& C = Interp->getCI()->getASTContext();
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
 
   std::vector<Cpp::TemplateArgInfo> args1 = {
       Cpp::GetVariableType(Cpp::GetNamed("a")),
@@ -1224,7 +1224,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch4) {
     A<double> b;
   )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[1], SubDecls);
   std::vector<Cpp::TCppFunction_t> candidates;
   for (auto i : SubDecls) {
@@ -1235,7 +1235,7 @@ TEST(FunctionReflectionTest, BestOverloadFunctionMatch4) {
 
   EXPECT_EQ(candidates.size(), 4);
 
-  ASTContext& C = Interp->getCI()->getASTContext();
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
 
   std::vector<Cpp::TemplateArgInfo> args1 = {};
   std::vector<Cpp::TemplateArgInfo> args2 = {C.IntTy.getAsOpaquePtr()};
@@ -1290,7 +1290,7 @@ TEST(FunctionReflectionTest, IsPublicMethod) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   EXPECT_TRUE(Cpp::IsPublicMethod(SubDecls[2]));
@@ -1316,7 +1316,7 @@ TEST(FunctionReflectionTest, IsProtectedMethod) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   EXPECT_FALSE(Cpp::IsProtectedMethod(SubDecls[2]));
@@ -1341,7 +1341,7 @@ TEST(FunctionReflectionTest, IsPrivateMethod) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   EXPECT_FALSE(Cpp::IsPrivateMethod(SubDecls[2]));
@@ -1366,7 +1366,7 @@ TEST(FunctionReflectionTest, IsConstructor) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   EXPECT_TRUE(Cpp::IsConstructor(SubDecls[2]));
@@ -1413,7 +1413,7 @@ TEST(FunctionReflectionTest, IsDestructor) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   EXPECT_FALSE(Cpp::IsDestructor(SubDecls[2]));
@@ -1432,7 +1432,7 @@ TEST(FunctionReflectionTest, IsStaticMethod) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   EXPECT_FALSE(Cpp::IsStaticMethod(Decls[0]));
@@ -1455,15 +1455,13 @@ TEST(FunctionReflectionTest, GetFunctionAddress) {
   std::string code = "int f1(int i) { return i * i; }";
   std::vector<const char*> interpreter_args = {"-include", "new"};
 
-  GetAllTopLevelDecls(code, Decls, /*filter_implicitGenerated=*/false,
-                      interpreter_args);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(
+      code, Decls, /*filter_implicitGenerated=*/false, interpreter_args);
 
   testing::internal::CaptureStdout();
-  Interp->declare("#include <iostream>");
-  Interp->process(
-    "void * address = (void *) &f1; \n"
-    "std::cout << address; \n"
-    );
+  Cpp::Declare("#include <iostream>");
+  Cpp::Process("void * address = (void *) &f1; \n"
+               "std::cout << address; \n");
 
   std::string output = testing::internal::GetCapturedStdout();
   std::stringstream address;
@@ -1472,7 +1470,7 @@ TEST(FunctionReflectionTest, GetFunctionAddress) {
 
   EXPECT_FALSE(Cpp::GetFunctionAddress(Cpp::GetGlobalScope()));
 
-  Interp->declare(R"(
+  Cpp::Declare(R"(
     template <typename T>
     T add1(T t) { return t + 1; }
   )");
@@ -1481,7 +1479,7 @@ TEST(FunctionReflectionTest, GetFunctionAddress) {
   Cpp::GetClassTemplatedMethods("add1", Cpp::GetGlobalScope(), funcs);
   EXPECT_EQ(funcs.size(), 1);
 
-  ASTContext& C = Interp->getCI()->getASTContext();
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
   std::vector<Cpp::TemplateArgInfo> argument = {C.DoubleTy.getAsOpaquePtr()};
   Cpp::TCppScope_t add1_double =
       Cpp::InstantiateTemplate(funcs[0], argument.data(), argument.size());
@@ -1500,7 +1498,7 @@ TEST(FunctionReflectionTest, IsVirtualMethod) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
 
   EXPECT_EQ(Cpp::GetName(SubDecls[2]), "x");
@@ -1670,12 +1668,12 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   GetAllTopLevelDecls(code, Decls, /*filter_implicitGenerated=*/false,
                       interpreter_args);
 
-  Interp->process(R"(
+  Cpp::Process(R"(
     #include <string>
     void f2(std::string &s) { printf("%s", s.c_str()); };
   )");
 
-  Interp->process(R"(
+  Cpp::Process(R"(
     namespace NS {
       int f3() { return 3; }
 
@@ -1729,7 +1727,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   EXPECT_EQ(callback(), 3);
 
   // FIXME: Do we need to support private ctors?
-  Interp->process(R"(
+  Cpp::Process(R"(
     class C {
     public:
       C() { printf("Default Ctor Called\n"); }
@@ -1766,9 +1764,9 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
         };
     )";
 
-  GetAllTopLevelDecls(code1, Decls1, /*filter_implicitGenerated=*/false,
-                      interpreter_args);
-  ASTContext& C = Interp->getCI()->getASTContext();
+  Cpp::TInterp_t I = GetAllTopLevelDecls(
+      code1, Decls1, /*filter_implicitGenerated=*/false, interpreter_args);
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
 
   std::vector<Cpp::TemplateArgInfo> argument = {C.IntTy.getAsOpaquePtr()};
   auto Instance1 = Cpp::InstantiateTemplate(Decls1[0], argument.data(),
@@ -1786,7 +1784,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   EXPECT_EQ(result, a + b);
 
   // call with pointers
-  Interp->process(R"(
+  Cpp::Process(R"(
   void set_5(int *out) {
     *out = 5;
   }
@@ -1803,7 +1801,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   set_5_f.Invoke(nullptr, {set_5_args, 1});
   EXPECT_EQ(b, 5);
 
-  Interp->process(R"(
+  Cpp::Process(R"(
   class TypedefToPrivateClass {
   private:
     class PC {
@@ -1832,7 +1830,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   EXPECT_TRUE(res);
 
   // templated operators
-  Interp->process(R"(
+  Cpp::Process(R"(
     class TOperator{
     public:
       template<typename T>
@@ -1859,7 +1857,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   FCI_op.Invoke((void*)&boolean, {args, /*args_size=*/1}, toperator);
   EXPECT_TRUE(boolean);
 
-  Interp->process(R"(
+  Cpp::Process(R"(
     namespace N1 {
 
     template <typename... _Tn> struct Klass3 {
@@ -1899,7 +1897,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   auto chrono_op_fn_callable = Cpp::MakeFunctionCallable(kop);
   EXPECT_EQ(chrono_op_fn_callable.getKind(), Cpp::JitCall::kGenericCall);
 
-  Interp->process(R"(
+  Cpp::Process(R"(
     namespace my_std {
     template <typename T1, typename T2>
     struct pair {
@@ -1980,7 +1978,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   auto fn_callable = Cpp::MakeFunctionCallable(fn);
   EXPECT_EQ(fn_callable.getKind(), Cpp::JitCall::kGenericCall);
 
-  Interp->process(R"(
+  Cpp::Process(R"(
     template <typename T>
     bool call_move(T&& t) {
       return true;
@@ -2001,7 +1999,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   EXPECT_EQ(call_move_callable.getKind(), Cpp::JitCall::kGenericCall);
 
   // instantiation in host, no template function body
-  Interp->process("template<typename T> T instantiation_in_host();");
+  Cpp::Process("template<typename T> T instantiation_in_host();");
 
   unresolved_candidate_methods.clear();
   Cpp::GetClassTemplatedMethods("instantiation_in_host", Cpp::GetGlobalScope(),
@@ -2029,7 +2027,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   EXPECT_EQ(instantiation_in_host_callable.getKind(),
             Cpp::JitCall::kUnknown); // expect to fail
 
-  Interp->process(R"(
+  Cpp::Process(R"(
     template<typename ...T>
     struct tuple {};
 
@@ -2054,7 +2052,7 @@ TEST(FunctionReflectionTest, GetFunctionCallWrapper) {
   auto tuple_tuple_callable = Cpp::MakeFunctionCallable(tuple_tuple);
   EXPECT_EQ(tuple_tuple_callable.getKind(), Cpp::JitCall::kGenericCall);
 
-  Interp->process(R"(
+  Cpp::Process(R"(
     namespace EnumFunctionSameName {
     enum foo { FOO = 42 };
     void foo() {}
@@ -2197,7 +2195,7 @@ TEST(FunctionReflectionTest, IsConstMethod) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   GetAllSubDecls(Decls[0], SubDecls);
   Cpp::TCppFunction_t method = nullptr; // Simulate an invalid method pointer
 
@@ -2222,7 +2220,7 @@ TEST(FunctionReflectionTest, GetFunctionArgName) {
     void get_size(long k, A, char ch = 'a', double l = 0.0) {}
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
   EXPECT_EQ(Cpp::GetFunctionArgName(Decls[0], 0), "i");
   EXPECT_EQ(Cpp::GetFunctionArgName(Decls[0], 1), "d");
   EXPECT_EQ(Cpp::GetFunctionArgName(Decls[0], 2), "l");
@@ -2272,7 +2270,7 @@ TEST(FunctionReflectionTest, GetFunctionArgDefault) {
     };
     )";
 
-  GetAllTopLevelDecls(code, Decls);
+  Cpp::TInterp_t I = GetAllTopLevelDecls(code, Decls);
 
   EXPECT_EQ(Cpp::GetFunctionArgDefault(Decls[0], 0), "");
   EXPECT_EQ(Cpp::GetFunctionArgDefault(Decls[0], 1), "4.");
@@ -2295,7 +2293,7 @@ TEST(FunctionReflectionTest, GetFunctionArgDefault) {
   EXPECT_EQ(Cpp::GetFunctionArgDefault(Decls[4], 2), "\'a\'");
   EXPECT_EQ(Cpp::GetFunctionArgDefault(Decls[4], 3), "0.");
 
-  ASTContext& C = Interp->getCI()->getASTContext();
+  ASTContext& C = (static_cast<compat::Interpreter*>(I))->getASTContext();
   Cpp::TemplateArgInfo template_args[1] = {C.IntTy.getAsOpaquePtr()};
   Cpp::TCppScope_t my_struct =
       Cpp::InstantiateTemplate(Decls[6], template_args, 1);
@@ -2405,7 +2403,7 @@ TEST(FunctionReflectionTest, ConstructPOD) {
   std::vector<const char*> interpreter_args = {"-include", "new"};
   Cpp::CreateInterpreter(interpreter_args);
 
-  Interp->declare(R"(
+  Cpp::Declare(R"(
     namespace PODS {
       struct SomePOD_B {
           int fInt;
@@ -2449,7 +2447,7 @@ TEST(FunctionReflectionTest, ConstructNested) {
   std::vector<const char*> interpreter_args = {"-include", "new"};
   Cpp::CreateInterpreter(interpreter_args);
 
-  Interp->declare(R"(
+  Cpp::Declare(R"(
     #include <new>
     extern "C" int printf(const char*,...);
     class A {
@@ -2508,7 +2506,7 @@ TEST(FunctionReflectionTest, ConstructArray) {
 
   Cpp::CreateInterpreter();
 
-  Interp->declare(R"(
+  Cpp::Declare(R"(
       #include <new>
       extern "C" int printf(const char*,...);
       class C {
@@ -2562,7 +2560,7 @@ TEST(FunctionReflectionTest, Destruct) {
   std::vector<const char*> interpreter_args = {"-include", "new"};
   Cpp::CreateInterpreter(interpreter_args);
 
-  Interp->declare(R"(
+  Cpp::Declare(R"(
     #include <new>
     extern "C" int printf(const char*,...);
     class C {
@@ -2606,7 +2604,7 @@ TEST(FunctionReflectionTest, Destruct) {
 
   // Failure test, this wrapper should not compile since we explicitly delete
   // the destructor
-  Interp->declare(R"(
+  Cpp::Declare(R"(
   class D {
     public:
       D() {}
@@ -2633,7 +2631,7 @@ TEST(FunctionReflectionTest, DestructArray) {
   std::vector<const char*> interpreter_args = {"-include", "new"};
   Cpp::CreateInterpreter(interpreter_args);
 
-  Interp->declare(R"(
+  Cpp::Declare(R"(
       #include <new>
       extern "C" int printf(const char*,...);
       class C {
