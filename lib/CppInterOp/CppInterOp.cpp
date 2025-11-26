@@ -1589,7 +1589,7 @@ intptr_t GetVariableOffset(compat::Interpreter& I, Decl* D,
     if (!address)
       address = I.getAddressOfGlobal(GD);
     if (!address) {
-      if (!VD->hasInit()) {
+      if (!VD->hasInit() && VD->getTemplateInstantiationPattern()) {
 #ifdef CPPINTEROP_USE_CLING
         cling::Interpreter::PushTransactionRAII RAII(&getInterp());
 #endif // CPPINTEROP_USE_CLING
@@ -1907,10 +1907,13 @@ TCppType_t GetTypeFromScope(TCppScope_t klass) {
   auto* D = (Decl*)klass;
   ASTContext& C = getASTContext();
 
-  if (ValueDecl* VD = dyn_cast<ValueDecl>(D))
+  if (auto* VD = dyn_cast<ValueDecl>(D))
     return VD->getType().getAsOpaquePtr();
 
-  return C.getTypeDeclType(cast<TypeDecl>(D)).getAsOpaquePtr();
+  if (auto* TD = dyn_cast<TypeDecl>(D))
+    return C.getTypeDeclType(TD).getAsOpaquePtr();
+
+  return nullptr;
 }
 
 // Internal functions that are not needed outside the library are
