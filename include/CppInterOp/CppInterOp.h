@@ -691,6 +691,10 @@ CPPINTEROP_API void GetOperator(TCppScope_t scope, Operator op,
                                 std::vector<TCppFunction_t>& operators,
                                 OperatorArity kind = kBoth);
 
+CPPINTEROP_API bool IsOperator(TCppScope_t scope);
+
+CPPINTEROP_API bool IsConversionOperator(TCppScope_t scope);
+
 /// Creates an owned instance of the interpreter we need for the various interop
 /// services and pushes it onto a stack.
 ///\param[in] Args - the list of arguments for interpreter constructor.
@@ -852,7 +856,8 @@ InstantiateTemplateFunctionFromString(const char* function_template);
 CPPINTEROP_API TCppFunction_t
 BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
                           const std::vector<TemplateArgInfo>& explicit_types,
-                          const std::vector<TemplateArgInfo>& arg_types);
+                          const std::vector<TemplateArgInfo>& arg_types,
+                          bool is_operator = false);
 
 CPPINTEROP_API void GetAllCppNames(TCppScope_t scope,
                                    std::set<std::string>& names);

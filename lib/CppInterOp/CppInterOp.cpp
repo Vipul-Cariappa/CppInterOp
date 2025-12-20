@@ -1245,7 +1245,8 @@ bool GetClassTemplatedMethods(const std::string& name, TCppScope_t parent,
 TCppFunction_t
 BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
                           const std::vector<TemplateArgInfo>& explicit_types,
-                          const std::vector<TemplateArgInfo>& arg_types) {
+                          const std::vector<TemplateArgInfo>& arg_types,
+                          bool is_operator) {
   auto& S = getSema();
   auto& C = S.getASTContext();
 
@@ -1269,9 +1270,9 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
     QualType Type = QualType::getFromOpaquePtr(i.m_Type);
     // XValue is an object that can be "moved" whereas PRValue is temporary
     // value. This enables overloads that require the object to be moved
-    ExprValueKind ExprKind = ExprValueKind::VK_XValue;
-    if (Type->isLValueReferenceType())
-      ExprKind = ExprValueKind::VK_LValue;
+    ExprValueKind ExprKind = ExprValueKind::VK_LValue;
+    // if (Type->isLValueReferenceType())
+    //   ExprKind = ExprValueKind::VK_LValue;
 
     new (&Exprs[idx]) OpaqueValueExpr(SourceLocation::getFromRawEncoding(1),
                                       Type.getNonReferenceType(), ExprKind);
@@ -1301,11 +1302,13 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
         S.getTrivialTemplateArgumentLoc(TA, QualType(), SourceLocation()));
 
   OverloadCandidateSet Overloads(
-      SourceLocation(), OverloadCandidateSet::CandidateSetKind::CSK_Normal);
+      SourceLocation(), is_operator ? OverloadCandidateSet::CandidateSetKind::CSK_Operator : OverloadCandidateSet::CandidateSetKind::CSK_Normal);
 
   for (void* i : candidates) {
     Decl* D = static_cast<Decl*>(i);
-    if (auto* FD = dyn_cast<FunctionDecl>(D)) {
+    if (auto* CXXMD = dyn_cast<CXXMethodDecl>(D); CXXMD && !Cpp::IsConstructor(CXXMD)) {
+      S.AddMethodCandidate(DeclAccessPair::make(CXXMD, CXXMD->getAccess()), Args[0]->getType(), Args[0]->Classify(C), llvm::ArrayRef<Expr*>(Args).slice(1), Overloads);
+    } else if (auto* FD = dyn_cast<FunctionDecl>(D)) {
       S.AddOverloadCandidate(FD, DeclAccessPair::make(FD, FD->getAccess()),
                              Args, Overloads);
     } else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(D)) {
@@ -1321,9 +1324,11 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
   }
 
   OverloadCandidateSet::iterator Best;
-  Overloads.BestViableFunction(S, SourceLocation(), Best);
-
-  FunctionDecl* Result = Best != Overloads.end() ? Best->Function : nullptr;
+  auto res = Overloads.BestViableFunction(S, SourceLocation(), Best);
+  FunctionDecl* Result = nullptr;
+  if (res == clang::OR_Success)
+    Result = Best != Overloads.end() ? Best->Function : nullptr;
+  
   delete[] Exprs;
   return Result;
 }
@@ -4057,6 +4062,18 @@ void GetOperator(TCppScope_t scope, Operator op,
         operators.push_back(i);
     }
   }
+}
+
+bool IsOperator(TCppScope_t scope) {
+  auto *D = static_cast<clang::Decl*>(scope);
+  if (auto *F = llvm::dyn_cast_if_present<clang::FunctionDecl>(D))
+    return F->isOverloadedOperator();
+  return false;
+}
+
+bool IsConversionOperator(TCppScope_t scope) {
+  auto *D = static_cast<clang::Decl*>(scope);
+  return llvm::dyn_cast_if_present<clang::CXXConversionDecl>(D);
 }
 
 TCppObject_t Allocate(TCppScope_t scope, TCppIndex_t count) {
