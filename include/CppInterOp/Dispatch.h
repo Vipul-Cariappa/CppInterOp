@@ -148,10 +148,14 @@ extern "C" CPPINTEROP_API CppFnPtrTy CppGetProcAddress(const char* procname);
                decltype(&CppImpl::GetClassTemplatedMethods))                   \
   DISPATCH_API(BestOverloadFunctionMatch,                                      \
                decltype(&CppImpl::BestOverloadFunctionMatch))                  \
+  DISPATCH_API(IsOperator, decltype(&CppImpl::IsOperator))                     \
+  DISPATCH_API(IsConversionOperator, decltype(&CppImpl::IsConversionOperator)) \
   DISPATCH_API(GetOperatorFromSpelling,                                        \
                decltype(&CppImpl::GetOperatorFromSpelling))                    \
   DISPATCH_API(IsFunctionDeleted, decltype(&CppImpl::IsFunctionDeleted))       \
   DISPATCH_API(IsPublicMethod, decltype(&CppImpl::IsPublicMethod))             \
+  DISPATCH_API(IsEquivalentTypes, decltype(&CppImpl::IsEquivalentTypes))       \
+  DISPATCH_API(IsMethod, decltype(&CppImpl::IsMethod))                         \
   DISPATCH_API(IsProtectedMethod, decltype(&CppImpl::IsProtectedMethod))       \
   DISPATCH_API(IsPrivateMethod, decltype(&CppImpl::IsPrivateMethod))           \
   DISPATCH_API(IsConstructor, decltype(&CppImpl::IsConstructor))               \

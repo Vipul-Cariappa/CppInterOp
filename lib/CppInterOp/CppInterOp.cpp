@@ -1280,7 +1280,8 @@ bool GetClassTemplatedMethods(const std::string& name, TCppScope_t parent,
 TCppFunction_t
 BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
                           const std::vector<TemplateArgInfo>& explicit_types,
-                          const std::vector<TemplateArgInfo>& arg_types) {
+                          const std::vector<TemplateArgInfo>& arg_types,
+                          bool is_operator) {
   auto& S = getSema();
   auto& C = S.getASTContext();
 
@@ -1304,9 +1305,9 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
     QualType Type = QualType::getFromOpaquePtr(i.m_Type);
     // XValue is an object that can be "moved" whereas PRValue is temporary
     // value. This enables overloads that require the object to be moved
-    ExprValueKind ExprKind = ExprValueKind::VK_XValue;
-    if (Type->isLValueReferenceType())
-      ExprKind = ExprValueKind::VK_LValue;
+    ExprValueKind ExprKind = ExprValueKind::VK_LValue;
+    // if (Type->isLValueReferenceType())
+    //   ExprKind = ExprValueKind::VK_LValue;
 
     new (&Exprs[idx]) OpaqueValueExpr(SourceLocation::getFromRawEncoding(1),
                                       Type.getNonReferenceType(), ExprKind);
@@ -1336,11 +1337,18 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
         S.getTrivialTemplateArgumentLoc(TA, QualType(), SourceLocation()));
 
   OverloadCandidateSet Overloads(
-      SourceLocation(), OverloadCandidateSet::CandidateSetKind::CSK_Normal);
+      SourceLocation(),
+      is_operator ? OverloadCandidateSet::CandidateSetKind::CSK_Operator
+                  : OverloadCandidateSet::CandidateSetKind::CSK_Normal);
 
   for (void* i : candidates) {
     Decl* D = static_cast<Decl*>(i);
-    if (auto* FD = dyn_cast<FunctionDecl>(D)) {
+    if (auto* CXXMD = dyn_cast<CXXMethodDecl>(D);
+        CXXMD && !Cpp::IsConstructor(CXXMD)) {
+      S.AddMethodCandidate(DeclAccessPair::make(CXXMD, CXXMD->getAccess()),
+                           Args[0]->getType(), Args[0]->Classify(C),
+                           llvm::ArrayRef<Expr*>(Args).slice(1), Overloads);
+    } else if (auto* FD = dyn_cast<FunctionDecl>(D)) {
       S.AddOverloadCandidate(FD, DeclAccessPair::make(FD, FD->getAccess()),
                              Args, Overloads);
     } else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(D)) {
@@ -1356,10 +1364,44 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
   }
 
   OverloadCandidateSet::iterator Best;
-  Overloads.BestViableFunction(S, SourceLocation(), Best);
+  auto res = Overloads.BestViableFunction(S, SourceLocation(), Best);
+  FunctionDecl* Result = nullptr;
+  if (res == clang::OR_Success)
+    Result = Best != Overloads.end() ? Best->Function : nullptr;
 
-  FunctionDecl* Result = Best != Overloads.end() ? Best->Function : nullptr;
   delete[] Exprs;
+
+  if (!Result) {
+    unsigned noteId = S.Diags.getCustomDiagID(
+        DiagnosticsEngine::Remark,
+        "overloaded function %q0 declared here%select{|: different "
+        "classes%diff{ ($ vs $)|}2,3|: different number of parameters (%2 vs "
+        "%3)|: type mismatch at %ordinal2 parameter%diff{ ($ vs $)|}3,4|: "
+        "different return type%diff{ ($ vs $)|}2,3|: different qualifiers (%2 "
+        "vs %3)|: different exception specifications}1");
+
+    for (void* i : candidates) {
+      Decl* D = static_cast<Decl*>(i);
+      auto* ND = llvm::dyn_cast<NamedDecl>(D);
+      if (!llvm::isa<FunctionDecl>(ND)) {
+        // XXX: ignore templated overloads
+        continue;
+      }
+      clang::FunctionProtoType::ExtProtoInfo EPI;
+      llvm::SmallVector<QualType> Args;
+      Args.reserve(arg_types.size());
+      for (auto i : arg_types) {
+        QualType Type = QualType::getFromOpaquePtr(i.m_Type);
+        Args.push_back(Type);
+      }
+      QualType FnTy = C.getFunctionType(C.VoidTy, Args, EPI);
+      const auto* FD = llvm::dyn_cast<FunctionDecl>(ND);
+      PartialDiagnostic PD(noteId, C.getDiagAllocator());
+      PD << FD;
+      S.HandleFunctionTypeMismatch(PD, FD->getType(), FnTy);
+      S.Diag(FD->getLocation(), PD);
+    }
+  }
   return Result;
 }
 
@@ -1371,6 +1413,73 @@ bool CheckMethodAccess(TCppFunction_t method, AccessSpecifier AS) {
     return CXXMD->getAccess() == AS;
   }
 
+  return false;
+}
+
+bool IsEquivalentTypes(TCppType_t typ1, TCppType_t typ2, QualKind& qual,
+                       ValueKind& ref, bool& pointer) {
+  auto& C = getASTContext();
+  qual = QualKind::None;
+  ref = ValueKind::None;
+  pointer = false;
+  QualType type1 = QualType::getFromOpaquePtr(typ1);
+  QualType type2 = QualType::getFromOpaquePtr(typ2);
+
+  // check if same type
+  if (C.hasSameType(type1, type2) || Cpp::IsTypeDerivedFrom(typ1, typ2) ||
+      Cpp::IsTypeDerivedFrom(typ2, typ1))
+    return true;
+
+  // check if same type after removing qualifiers
+  if (C.hasSameUnqualifiedType(type1, type2)) {
+    if (type1.isConstQualified() ^ type2.isConstQualified())
+      qual = qual | QualKind::Const;
+    if (type1.isRestrictQualified() ^ type2.isRestrictQualified())
+      qual = qual | QualKind::Restrict;
+    if (type1.isVolatileQualified() ^ type1.isVolatileQualified())
+      qual = qual | QualKind::Volatile;
+    return true;
+  }
+
+  // check if same type after removing references
+  if (type1->isLValueReferenceType() &&
+      IsEquivalentTypes(type1.getNonReferenceType().getAsOpaquePtr(), typ2,
+                        qual, ref, pointer)) {
+    ref = ref | ValueKind::LValue;
+    return true;
+  }
+  if (type1->isRValueReferenceType() &&
+      IsEquivalentTypes(type1.getNonReferenceType().getAsOpaquePtr(), typ2,
+                        qual, ref, pointer)) {
+    ref = ref | ValueKind::RValue;
+    return true;
+  }
+  if (type2->isLValueReferenceType() &&
+      IsEquivalentTypes(type2.getNonReferenceType().getAsOpaquePtr(), typ1,
+                        qual, ref, pointer)) {
+    ref = ref | ValueKind::LValue;
+    return true;
+  }
+  if (type2->isRValueReferenceType() &&
+      IsEquivalentTypes(type2.getNonReferenceType().getAsOpaquePtr(), typ1,
+                        qual, ref, pointer)) {
+    ref = ref | ValueKind::RValue;
+    return true;
+  }
+
+  // check if same type after removing pointers
+  if (type1->isAnyPointerType() &&
+      IsEquivalentTypes(type1->getPointeeType().getAsOpaquePtr(), typ2, qual,
+                        ref, pointer)) {
+    pointer = true;
+    return true;
+  }
+  if (type2->isAnyPointerType() &&
+      IsEquivalentTypes(type2->getPointeeType().getAsOpaquePtr(), typ1, qual,
+                        ref, pointer)) {
+    pointer = true;
+    return true;
+  }
   return false;
 }
 
@@ -3317,12 +3426,25 @@ void AddLibrarySearchPaths(const std::string& ResourceDir,
                                                  false, false);
   }
 }
+
+std::string parse_for(const std::vector<const char*>& Args, const std::string& Arg) {
+  for (auto i = Args.begin(); i != Args.end(); i++) {
+    if (*i == Arg)
+      return *(i++);
+  }
+  return "";
+} 
 } // namespace
 
 TInterp_t CreateInterpreter(const std::vector<const char*>& Args /*={}*/,
                             const std::vector<const char*>& GpuArgs /*={}*/) {
+  // printf("BLAH BLAH BLAH!!!\n\n");
+  // printf("MakeResourcesPath() = %s\n", MakeResourcesPath().c_str());
+  // printf("DetectResourceDir() = %s\n", DetectResourceDir().c_str());
   std::string MainExecutableName = sys::fs::getMainExecutable(nullptr, nullptr);
-  std::string ResourceDir = MakeResourcesPath();
+  std::string ResourceDir = parse_for(Args, "-resource-dir");
+  if (ResourceDir.empty())
+    ResourceDir = MakeResourcesPath();
   llvm::Triple T(llvm::sys::getProcessTriple());
   namespace fs = std::filesystem;
   if ((!fs::is_directory(ResourceDir)) && (T.isOSDarwin() || T.isOSLinux()))
@@ -4137,6 +4259,18 @@ void GetOperator(TCppScope_t scope, Operator op,
         operators.push_back(i);
     }
   }
+}
+
+bool IsOperator(TCppScope_t scope) {
+  auto* D = static_cast<clang::Decl*>(scope);
+  if (auto* F = llvm::dyn_cast_if_present<clang::FunctionDecl>(D))
+    return F->isOverloadedOperator();
+  return false;
+}
+
+bool IsConversionOperator(TCppScope_t scope) {
+  auto* D = static_cast<clang::Decl*>(scope);
+  return llvm::dyn_cast_if_present<clang::CXXConversionDecl>(D);
 }
 
 TCppObject_t Allocate(TCppScope_t scope, TCppIndex_t count) {

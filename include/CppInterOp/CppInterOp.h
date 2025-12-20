@@ -97,6 +97,7 @@ enum OperatorArity : unsigned char { kUnary = 1, kBinary, kBoth };
 
 /// Enum modelling CVR qualifiers.
 enum QualKind : unsigned char {
+  None = 0,
   Const = 1 << 0,
   Volatile = 1 << 1,
   Restrict = 1 << 2
@@ -108,10 +109,15 @@ inline QualKind operator|(QualKind a, QualKind b) {
 }
 
 enum class ValueKind : std::uint8_t {
-  None,
-  LValue,
-  RValue,
+  None = 0,
+  LValue = 1 << 0,
+  RValue = 1 << 2,
 };
+
+inline ValueKind operator|(ValueKind a, ValueKind b) {
+  return static_cast<ValueKind>(static_cast<std::uint8_t>(a) |
+                                static_cast<std::uint8_t>(b));
+}
 
 /// A class modeling function calls for functions produced by the interpreter
 /// in compiled code. It provides an information if we are calling a standard
@@ -535,6 +541,10 @@ CPPINTEROP_API bool
 GetClassTemplatedMethods(const std::string& name, TCppScope_t parent,
                          std::vector<TCppFunction_t>& funcs);
 
+CPPINTEROP_API
+bool IsEquivalentTypes(TCppType_t typ1, TCppType_t typ2, QualKind& qual,
+                       ValueKind& ref, bool& pointer);
+
 /// Checks if the provided parameter is a method.
 CPPINTEROP_API bool IsMethod(TCppConstFunction_t method);
 
@@ -699,6 +709,10 @@ CPPINTEROP_API void GetOperator(TCppScope_t scope, Operator op,
                                 std::vector<TCppFunction_t>& operators,
                                 OperatorArity kind = kBoth);
 
+CPPINTEROP_API bool IsOperator(TCppScope_t scope);
+
+CPPINTEROP_API bool IsConversionOperator(TCppScope_t scope);
+
 /// Creates an owned instance of the interpreter we need for the various interop
 /// services and pushes it onto a stack.
 ///\param[in] Args - the list of arguments for interpreter constructor.
@@ -857,10 +871,10 @@ InstantiateTemplateFunctionFromString(const char* function_template);
 ///\param[in] explicit_types - set of explicitly instantiated template types
 ///\param[in] arg_types - set of argument types
 ///\returns Instantiated function pointer
-CPPINTEROP_API TCppFunction_t
-BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
-                          const std::vector<TemplateArgInfo>& explicit_types,
-                          const std::vector<TemplateArgInfo>& arg_types);
+CPPINTEROP_API TCppFunction_t BestOverloadFunctionMatch(
+    const std::vector<TCppFunction_t>& candidates,
+    const std::vector<TemplateArgInfo>& explicit_types,
+    const std::vector<TemplateArgInfo>& arg_types, bool is_operator = false);
 
 CPPINTEROP_API void GetAllCppNames(TCppScope_t scope,
                                    std::set<std::string>& names);
