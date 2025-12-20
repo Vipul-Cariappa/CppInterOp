@@ -1219,11 +1219,11 @@ TYPED_TEST(CPPINTEROP_TEST_MODE,
   std::vector<Cpp::TemplateArgInfo> explicit_args;
 
   Cpp::TCppFunction_t func1 =
-      Cpp::BestOverloadFunctionMatch(candidates, explicit_args, args1);
+      Cpp::BestOverloadFunctionMatch(candidates, explicit_args, args1, true);
   Cpp::TCppFunction_t func2 =
-      Cpp::BestOverloadFunctionMatch(candidates, explicit_args, args2);
+      Cpp::BestOverloadFunctionMatch(candidates, explicit_args, args2, true);
   Cpp::TCppFunction_t func3 =
-      Cpp::BestOverloadFunctionMatch(candidates, explicit_args, args3);
+      Cpp::BestOverloadFunctionMatch(candidates, explicit_args, args3, true);
 
   candidates.clear();
   Cpp::GetOperator(
@@ -1236,7 +1236,7 @@ TYPED_TEST(CPPINTEROP_TEST_MODE,
       Cpp::GetVariableType(Cpp::GetNamed("a"))};
 
   Cpp::TCppFunction_t func4 =
-      Cpp::BestOverloadFunctionMatch(candidates, explicit_args, args4);
+      Cpp::BestOverloadFunctionMatch(candidates, explicit_args, args4, true);
 
   EXPECT_EQ(Cpp::GetFunctionSignature(func1),
             "template<> A<int> operator+<int>(A<int> lhs, A<int> rhs)");
@@ -1996,7 +1996,7 @@ TYPED_TEST(CPPINTEROP_TEST_MODE, FunctionReflection_GetFunctionCallWrapper) {
                    Cpp::Operator::OP_Plus, operators);
   EXPECT_EQ(operators.size(), 1);
   Cpp::TCppFunction_t kop =
-      Cpp::BestOverloadFunctionMatch(operators, empty_templ_args, {K1, K2});
+      Cpp::BestOverloadFunctionMatch(operators, empty_templ_args, {K1, K2}, true);
   auto chrono_op_fn_callable = Cpp::MakeFunctionCallable(kop);
   EXPECT_EQ(chrono_op_fn_callable.getKind(), Cpp::JitCall::kGenericCall);
 
@@ -2227,7 +2227,7 @@ TYPED_TEST(CPPINTEROP_TEST_MODE, FunctionReflection_GetFunctionCallWrapper) {
   EXPECT_EQ(operators.size(), 2);
 
   op = Cpp::BestOverloadFunctionMatch(
-      operators, {}, {{Cpp::GetTypeFromScope(KlassProduct_float)}});
+      operators, {}, {{Cpp::GetTypeFromScope(KlassProduct_float)}}, true);
   EXPECT_TRUE(op);
 
   auto op_callable = Cpp::MakeFunctionCallable(op);
