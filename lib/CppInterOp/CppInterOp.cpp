@@ -3643,8 +3643,8 @@ int Declare(compat::Interpreter& I, const char* code, bool silent) {
   return I.declare(code);
 }
 
-int Declare(const char* code, bool silent) {
-  return Declare(getInterp(), code, silent);
+int Declare(const char* code, bool silent, TInterp_t I) {
+  return Declare(getInterp(I), code, silent);
 }
 
 int Process(const char* code) { return getInterp().process(code); }

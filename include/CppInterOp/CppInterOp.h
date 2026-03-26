@@ -845,7 +845,7 @@ CPPINTEROP_API void GetIncludePaths(std::vector<std::string>& IncludePaths,
 
 /// Only Declares a code snippet in \c code and does not execute it.
 ///\returns 0 on success
-CPPINTEROP_API int Declare(const char* code, bool silent = false);
+CPPINTEROP_API int Declare(const char* code, bool silent = false, TInterp_t I = nullptr);
 
 /// Declares and executes a code snippet in \c code.
 ///\returns 0 on success
