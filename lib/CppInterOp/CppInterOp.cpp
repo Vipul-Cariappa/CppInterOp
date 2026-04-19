@@ -1685,7 +1685,7 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
                           const std::vector<TemplateArgInfo>& explicit_types,
                           const std::vector<TemplateArgInfo>& arg_types,
                           bool is_operator) {
-  INTEROP_TRACE(candidates, explicit_types, arg_types);
+  INTEROP_TRACE(candidates, explicit_types, arg_types, is_operator);
   auto& S = getSema();
   auto& C = S.getASTContext();
 
@@ -1707,9 +1707,9 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
     QualType Type = QualType::getFromOpaquePtr(i.m_Type);
     // XValue is an object that can be "moved" whereas PRValue is temporary
     // value. This enables overloads that require the object to be moved
-    ExprValueKind ExprKind = ExprValueKind::VK_LValue;
-    // if (Type->isLValueReferenceType())
-    //   ExprKind = ExprValueKind::VK_LValue;
+    ExprValueKind ExprKind = ExprValueKind::VK_XValue;
+    if (Type->isLValueReferenceType())
+      ExprKind = ExprValueKind::VK_LValue;
 
     new (&Exprs[idx]) OpaqueValueExpr(SourceLocation::getFromRawEncoding(1),
                                       Type.getNonReferenceType(), ExprKind);
@@ -1754,14 +1754,23 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
       S.AddOverloadCandidate(FD, DeclAccessPair::make(FD, FD->getAccess()),
                              Args, Overloads);
     } else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(D)) {
-      // AddTemplateOverloadCandidate is causing a memory leak
-      // It is a known bug at clang
-      // call stack: AddTemplateOverloadCandidate -> MakeDeductionFailureInfo
-      // source:
-      // https://github.com/llvm/llvm-project/blob/release/19.x/clang/lib/Sema/SemaOverload.cpp#L731-L756
-      S.AddTemplateOverloadCandidate(
-          FTD, DeclAccessPair::make(FTD, FTD->getAccess()),
-          &ExplicitTemplateArgs, Args, Overloads);
+      if (auto* CXXMD = dyn_cast<CXXMethodDecl>(FTD->getTemplatedDecl());
+          CXXMD && !Cpp::IsConstructor(CXXMD)) {
+        S.AddMethodTemplateCandidate(
+            FTD, DeclAccessPair::make(FTD, FTD->getAccess()),
+            Args[0]->getType()->getAsCXXRecordDecl(), &ExplicitTemplateArgs,
+            Args[0]->getType(), Args[0]->Classify(C),
+            llvm::ArrayRef<Expr*>(Args).slice(1), Overloads);
+      } else {
+        // AddTemplateOverloadCandidate is causing a memory leak
+        // It is a known bug at clang
+        // call stack: AddTemplateOverloadCandidate -> MakeDeductionFailureInfo
+        // source:
+        // https://github.com/llvm/llvm-project/blob/release/19.x/clang/lib/Sema/SemaOverload.cpp#L731-L756
+        S.AddTemplateOverloadCandidate(
+            FTD, DeclAccessPair::make(FTD, FTD->getAccess()),
+            &ExplicitTemplateArgs, Args, Overloads);
+      }
     }
   }
 
@@ -4880,10 +4889,11 @@ void GetOperator(TCppScope_t scope, Operator op,
 }
 
 bool IsOperator(TCppScope_t scope) {
+  INTEROP_TRACE(scope);
   auto* D = static_cast<clang::Decl*>(scope);
   if (auto* F = llvm::dyn_cast_if_present<clang::FunctionDecl>(D))
     return F->isOverloadedOperator();
-  return false;
+  return INTEROP_RETURN(false);
 }
 
 bool IsConversionOperator(TCppScope_t scope) {

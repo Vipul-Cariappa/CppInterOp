@@ -1066,11 +1066,20 @@ TYPED_TEST(CPPINTEROP_TEST_MODE,
 
   ASTContext& C = Interp->getCI()->getASTContext();
 
-  std::vector<Cpp::TemplateArgInfo> args0;
+  Cpp::TCppScope_t ScopeKlass =
+      Cpp::GetNamed("MyTemplatedMethodClass" DFLT_NULLPTR);
+  EXPECT_TRUE(ScopeKlass);
+
+  Cpp::TCppType_t TypeKlass = Cpp::GetTypeFromScope(ScopeKlass);
+  EXPECT_TRUE(TypeKlass);
+
+  std::vector<Cpp::TemplateArgInfo> args0 = {TypeKlass};
   std::vector<Cpp::TemplateArgInfo> args1 = {
-      C.getLValueReferenceType(C.IntTy).getAsOpaquePtr()};
-  std::vector<Cpp::TemplateArgInfo> args2 = {C.CharTy.getAsOpaquePtr(), C.FloatTy.getAsOpaquePtr()};
-  std::vector<Cpp::TemplateArgInfo> args3 = {C.FloatTy.getAsOpaquePtr()};
+      TypeKlass, C.getLValueReferenceType(C.IntTy).getAsOpaquePtr()};
+  std::vector<Cpp::TemplateArgInfo> args2 = {
+      TypeKlass, C.CharTy.getAsOpaquePtr(), C.FloatTy.getAsOpaquePtr()};
+  std::vector<Cpp::TemplateArgInfo> args3 = {TypeKlass,
+                                             C.FloatTy.getAsOpaquePtr()};
 
   std::vector<Cpp::TemplateArgInfo> explicit_args0;
   std::vector<Cpp::TemplateArgInfo> explicit_args1 = {C.IntTy.getAsOpaquePtr()};
@@ -1284,8 +1293,14 @@ TYPED_TEST(CPPINTEROP_TEST_MODE,
 
   ASTContext& C = Interp->getCI()->getASTContext();
 
-  std::vector<Cpp::TemplateArgInfo> args1 = {};
-  std::vector<Cpp::TemplateArgInfo> args2 = {C.IntTy.getAsOpaquePtr()};
+  Cpp::TCppScope_t ScopeB = Cpp::GetNamed("B" DFLT_NULLPTR);
+  EXPECT_TRUE(ScopeB);
+
+  Cpp::TCppType_t TypeB = Cpp::GetTypeFromScope(ScopeB);
+  EXPECT_TRUE(TypeB);
+
+  std::vector<Cpp::TemplateArgInfo> args1 = {TypeB};
+  std::vector<Cpp::TemplateArgInfo> args2 = {TypeB, C.IntTy.getAsOpaquePtr()};
   std::vector<Cpp::TemplateArgInfo> args3 = {
       Cpp::GetVariableType(Cpp::GetNamed("a"))};
   std::vector<Cpp::TemplateArgInfo> args4 = {
