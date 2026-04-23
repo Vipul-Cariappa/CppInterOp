@@ -325,7 +325,7 @@ TEST_F(TracingTest, ArgFormattingString) {
   // a plain literal (see ArgFormattingString* tests below).
   FuncTakingString("hello");
   auto output = TraceInfo::TheTraceInfo->getLastLogEntry();
-  EXPECT_THAT(output, HasSubstr("Cpp::FuncTakingString(\"hello\")"));
+  EXPECT_THAT(output, HasSubstr("Cpp::FuncTakingString(R\"(hello)\")"));
 }
 
 TEST_F(TracingTest, ArgFormattingEmptyStringIsPlain) {
