@@ -714,7 +714,8 @@ TYPED_TEST(CPPINTEROP_TEST_MODE, VariableReflection_Is_Get_Reference) {
   EXPECT_EQ(Cpp::GetNonReferenceType(Cpp::GetVariableType(Decls[6])),
             Cpp::GetVariableType(Decls[5]));
 
-  EXPECT_FALSE(Cpp::GetNonReferenceType(Cpp::GetVariableType(Decls[5])));
+  EXPECT_EQ(Cpp::GetNonReferenceType(Cpp::GetVariableType(Decls[5])),
+            Cpp::GetVariableType(Decls[5]));
 
   EXPECT_EQ(Cpp::GetValueKind(Cpp::GetVariableType(Decls[2])),
             Cpp::ValueKind::LValue);

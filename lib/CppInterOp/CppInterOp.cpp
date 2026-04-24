@@ -2453,7 +2453,7 @@ TCppType_t GetReferencedType(TCppType_t type, bool rvalue) {
 TCppType_t GetNonReferenceType(TCppType_t type) {
   INTEROP_TRACE(type);
   if (!IsReferenceType(type))
-    return INTEROP_RETURN(nullptr);
+    return INTEROP_RETURN(type);
   QualType QT = QualType::getFromOpaquePtr(type);
   return INTEROP_RETURN(QT.getNonReferenceType().getAsOpaquePtr());
 }
