@@ -1684,8 +1684,9 @@ TCppFunction_t
 BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
                           const std::vector<TemplateArgInfo>& explicit_types,
                           const std::vector<TemplateArgInfo>& arg_types,
+                          std::vector<TCppFunction_t>& ambiguous_candidates,
                           bool is_operator) {
-  INTEROP_TRACE(candidates, explicit_types, arg_types, is_operator);
+  INTEROP_TRACE(candidates, explicit_types, arg_types, ambiguous_candidates, is_operator);
   auto& S = getSema();
   auto& C = S.getASTContext();
 
@@ -1702,10 +1703,6 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
   auto* Exprs = new WrapperExpr[arg_types.size()];
   llvm::SmallVector<Expr*> Args;
 
-  // auto* AlternateExprs = new WrapperExpr[arg_types.size()];
-  // llvm::SmallVector<Expr*> AlternateArgs;
-  // bool UseAlternateArgs = false;
-
   Args.reserve(arg_types.size());
   size_t idx = 0;
   for (auto i : arg_types) {
@@ -1719,18 +1716,6 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
     new (&Exprs[idx]) OpaqueValueExpr(SourceLocation::getFromRawEncoding(1),
                                       Type.getNonReferenceType(), ExprKind);
     Args.push_back(&Exprs[idx]);
-
-    // QualType AlternateType = Type;
-    // if (!Type->isPointerType()) {
-    //     AlternateType = C.getPointerType(Type.getNonReferenceType());
-    //     UseAlternateArgs = true;
-    // }
-    // new (&AlternateExprs[idx])
-    // OpaqueValueExpr(SourceLocation::getFromRawEncoding(1),
-    //                                   AlternateType.getNonReferenceType(),
-    //                                   ExprKind);
-    // AlternateArgs.push_back(&AlternateExprs[idx]);
-
     ++idx;
   }
 
@@ -1767,19 +1752,9 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
       S.AddMethodCandidate(DeclAccessPair::make(CXXMD, CXXMD->getAccess()),
                            Args[0]->getType(), Args[0]->Classify(C),
                            llvm::ArrayRef<Expr*>(Args).slice(1), Overloads);
-      // if (UseAlternateArgs) {
-      //   S.AddMethodCandidate(DeclAccessPair::make(CXXMD, CXXMD->getAccess()),
-      //                      Args[0]->getType(), Args[0]->Classify(C),
-      //                       llvm::ArrayRef<Expr*>(AlternateArgs).slice(1),
-      //                       Overloads);
-      // }
     } else if (auto* FD = dyn_cast<FunctionDecl>(D)) {
       S.AddOverloadCandidate(FD, DeclAccessPair::make(FD, FD->getAccess()),
                              Args, Overloads);
-      // if (UseAlternateArgs) {
-      //   S.AddOverloadCandidate(FD, DeclAccessPair::make(FD, FD->getAccess()),
-      //                           AlternateArgs, Overloads);
-      // }
     } else if (auto* FTD = dyn_cast<FunctionTemplateDecl>(D)) {
       if (auto* CXXMD = dyn_cast<CXXMethodDecl>(FTD->getTemplatedDecl());
           CXXMD && !Cpp::IsConstructor(CXXMD) && !CXXMD->isStatic()) {
@@ -1788,14 +1763,6 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
             Args[0]->getType()->getAsCXXRecordDecl(), &ExplicitTemplateArgs,
             Args[0]->getType(), Args[0]->Classify(C),
             llvm::ArrayRef<Expr*>(Args).slice(1), Overloads);
-        // if (UseAlternateArgs) {
-        //     S.AddMethodTemplateCandidate(
-        //         FTD, DeclAccessPair::make(FTD, FTD->getAccess()),
-        //         Args[0]->getType()->getAsCXXRecordDecl(),
-        //         &ExplicitTemplateArgs, Args[0]->getType(),
-        //         Args[0]->Classify(C),
-        //         llvm::ArrayRef<Expr*>(AlternateArgs).slice(1), Overloads);
-        // }
       } else {
         // AddTemplateOverloadCandidate is causing a memory leak
         // It is a known bug at clang
@@ -1805,11 +1772,6 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
         S.AddTemplateOverloadCandidate(
             FTD, DeclAccessPair::make(FTD, FTD->getAccess()),
             &ExplicitTemplateArgs, Args, Overloads);
-        // if (UseAlternateArgs) {
-        //     S.AddTemplateOverloadCandidate(
-        //         FTD, DeclAccessPair::make(FTD, FTD->getAccess()),
-        //         &ExplicitTemplateArgs, AlternateArgs, Overloads);
-        // }
       }
     }
   }
@@ -1819,11 +1781,16 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
   FunctionDecl* Result = nullptr;
   if (res == clang::OR_Success)
     Result = Best != Overloads.end() ? Best->Function : nullptr;
+  else if (res == clang::OR_Ambiguous) {
+      for (auto i : Overloads) {
+          if (i.Best)
+              ambiguous_candidates.push_back(i.Function);
+      }
+  }
 
   delete[] Exprs;
-  // delete[] AlternateExprs;
 
-  if (!Result) {
+  if ((res != clang::OR_Ambiguous) && !Result) {
     unsigned noteId = S.Diags.getCustomDiagID(
         DiagnosticsEngine::Remark,
         "overloaded function %q0 declared here%select{|: different "
@@ -1842,7 +1809,14 @@ BestOverloadFunctionMatch(const std::vector<TCppFunction_t>& candidates,
       clang::FunctionProtoType::ExtProtoInfo EPI;
       llvm::SmallVector<QualType> Args;
       Args.reserve(arg_types.size());
+      bool adjustForThis = false;
+      if (auto *CXXMD = llvm::dyn_cast<clang::CXXMethodDecl>(ND); CXXMD && !llvm::isa<clang::CXXConstructorDecl>(CXXMD) && !CXXMD->isStatic())
+          adjustForThis = true;
       for (auto i : arg_types) {
+          if (adjustForThis) {
+              adjustForThis = false;
+              continue;
+          }
         QualType Type = QualType::getFromOpaquePtr(i.m_Type);
         Args.push_back(Type);
       }
@@ -4930,17 +4904,18 @@ void GetOperator(TCppScope_t scope, Operator op,
   return INTEROP_VOID_RETURN();
 }
 
-bool IsOperator(TCppScope_t scope) {
-  INTEROP_TRACE(scope);
-  auto* D = static_cast<clang::Decl*>(scope);
-  if (auto* F = llvm::dyn_cast_if_present<clang::FunctionDecl>(D))
+bool IsOperator(TCppConstFunction_t method) {
+  INTEROP_TRACE(method);
+  const auto* D = static_cast<const clang::Decl*>(method);
+  if (const auto* F = llvm::dyn_cast_if_present<clang::FunctionDecl>(D))
     return INTEROP_RETURN(F->isOverloadedOperator());
   return INTEROP_RETURN(false);
 }
 
-bool IsConversionOperator(TCppScope_t scope) {
-  auto* D = static_cast<clang::Decl*>(scope);
-  return llvm::dyn_cast_if_present<clang::CXXConversionDecl>(D);
+bool IsConversionOperator(TCppConstFunction_t method) {
+  INTEROP_TRACE(method);
+  const auto* D = static_cast<const clang::Decl*>(method);
+  return INTEROP_RETURN(llvm::dyn_cast_if_present<clang::CXXConversionDecl>(D));
 }
 
 TCppObject_t Allocate(TCppScope_t scope, TCppIndex_t count) {

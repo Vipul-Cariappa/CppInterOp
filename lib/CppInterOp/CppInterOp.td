@@ -1092,7 +1092,9 @@ def BestOverloadFunctionMatch : CppInterOpAPI {
   let Args = [
     Arg<"const std::vector<TCppFunction_t>&", "candidates">,
     Arg<"const std::vector<TemplateArgInfo>&", "explicit_types">,
-    Arg<"const std::vector<TemplateArgInfo>&", "arg_types">
+    Arg<"const std::vector<TemplateArgInfo>&", "arg_types">,
+    Arg<"std::vector<TCppFunction_t>&", "ambiguous_candidates">,
+    Arg<"bool", "is_operator", "false">
   ];
 }
 
@@ -1339,6 +1341,24 @@ This function parses and instantiates a template function.}];
   let Args = [Arg<"const char*", "function_template">];
 }
 
+def IsConversionOperator : CppInterOpAPI {
+  let Doc = "Checks if the provided parameter is a conversion operator.";
+  let ReturnType = "bool";
+  let Args = [Arg<"TCppConstFunction_t", "method">];
+}
+
+def IsEquivalentTypes : CppInterOpAPI {
+  let Doc = "Checks if the given two types are equivalent under qualifers, references & pointer transformations.";
+  let ReturnType = "bool";
+  let Args = [
+    Arg<"TCppType_t", "typ1">,
+    Arg<"TCppType_t", "typ2">,
+    Arg<"QualKind&", "qual">,
+    Arg<"ValueKind&", "ref">,
+    Arg<"bool&", "pointer">,
+  ];
+}
+
 def IsFunction : CppInterOpAPI {
   let Doc = "Checks if the scope is a function.";
   let ReturnType = "bool";
@@ -1353,6 +1373,12 @@ def IsFunctionPointerType : CppInterOpAPI {
 
 def IsMethod : CppInterOpAPI {
   let Doc = "Checks if the provided parameter is a method.";
+  let ReturnType = "bool";
+  let Args = [Arg<"TCppConstFunction_t", "method">];
+}
+
+def IsOperator : CppInterOpAPI {
+  let Doc = "Checks if the provided parameter is a operator.";
   let ReturnType = "bool";
   let Args = [Arg<"TCppConstFunction_t", "method">];
 }
